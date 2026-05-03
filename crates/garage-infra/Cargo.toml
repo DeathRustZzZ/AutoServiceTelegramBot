@@ -6,3 +6,12 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+garage-domain.workspace = true
+garage-app.workspace = true
+
+sqlx.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+uuid.workspace = true

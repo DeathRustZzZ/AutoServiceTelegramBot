@@ -6,3 +6,7 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
+serde.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
