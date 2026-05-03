@@ -264,41 +264,74 @@ impl Client {
         &self.updated_at
     }
 
+    /// Обновляет `updated_at`, сохраняя временной инвариант сущности.
+    ///
+    /// Алгоритм:
+    /// 1. Сравниваем новое время с `created_at`.
+    /// 2. Если новое время раньше создания клиента, возвращаем ошибку и не
+    ///    меняем состояние.
+    /// 3. Если время корректно, записываем его в `updated_at`.
+    ///
+    /// Метод приватный, потому что это технический шаг жизненного цикла, а не
+    /// самостоятельный бизнес-сценарий. Публичные методы вызывают его до
+    /// изменения конкретного поля: если время невалидно, операция завершается
+    /// ошибкой без частично измененного состояния.
+    fn touch(&mut self, now: DateTime<Utc>) -> Result<(), ClientError> {
+        if now < self.created_at {
+            return Err(ClientError::UpdatedAtBeforeCreatedAt);
+        }
+
+        self.updated_at = now;
+        Ok(())
+    }
+
     /// Меняет имя клиента и фиксирует момент изменения.
     ///
     /// Метод принимает уже проверенный `ClientName`, поэтому не занимается
     /// парсингом. Его ответственность - заменить поле и синхронно обновить
     /// `updated_at`, чтобы история состояния оставалась честной.
-    pub fn rename(&mut self, name: ClientName, now: DateTime<Utc>) {
+    pub fn rename(&mut self, name: ClientName, now: DateTime<Utc>) -> Result<(), ClientError> {
+        self.touch(now)?;
         self.name = name;
-        self.updated_at = now;
+        Ok(())
     }
 
     /// Меняет телефон клиента и фиксирует момент изменения.
     ///
     /// Валидация номера находится в `PhoneNumber::parse`; сущность работает
     /// только с валидным value object.
-    pub fn change_phone(&mut self, phone: PhoneNumber, now: DateTime<Utc>) {
+    pub fn change_phone(
+        &mut self,
+        phone: PhoneNumber,
+        now: DateTime<Utc>,
+    ) -> Result<(), ClientError> {
+        self.touch(now)?;
         self.phone = phone;
-        self.updated_at = now;
+        Ok(())
     }
 
     /// Заменяет заметку клиента и фиксирует момент изменения.
     ///
     /// `None` означает отсутствие заметки, а не пустую строку. Это сохраняет
     /// один понятный способ представить пустое значение.
-    pub fn update_notes(&mut self, notes: Option<ClientNotes>, now: DateTime<Utc>) {
+    pub fn update_notes(
+        &mut self,
+        notes: Option<ClientNotes>,
+        now: DateTime<Utc>,
+    ) -> Result<(), ClientError> {
+        self.touch(now)?;
         self.notes = notes;
-        self.updated_at = now;
+        Ok(())
     }
 
     /// Удаляет заметку клиента и фиксирует момент изменения.
     ///
     /// Это явный сценарный метод поверх `update_notes(None, now)`. Он делает код
     /// вызывающей стороны читаемее, когда пользователь именно очищает заметку.
-    pub fn clear_notes(&mut self, now: DateTime<Utc>) {
+    pub fn clear_notes(&mut self, now: DateTime<Utc>) -> Result<(), ClientError> {
+        self.touch(now)?;
         self.notes = None;
-        self.updated_at = now;
+        Ok(())
     }
 }
 
@@ -523,7 +556,7 @@ mod tests {
             created_at,
         );
 
-        client.rename(client_name("Петр"), updated_at);
+        client.rename(client_name("Петр"), updated_at).unwrap();
 
         assert_eq!(client.name().as_str(), "Петр");
         assert_eq!(client.phone().as_str(), "+375291234567");
@@ -546,7 +579,9 @@ mod tests {
             created_at,
         );
 
-        client.change_phone(client_phone("8 033 765 43 21"), updated_at);
+        client
+            .change_phone(client_phone("8 033 765 43 21"), updated_at)
+            .unwrap();
 
         assert_eq!(client.phone().as_str(), "+375337654321");
         assert_eq!(*client.created_at(), created_at);
@@ -567,7 +602,9 @@ mod tests {
             created_at,
         );
 
-        client.update_notes(Some(client_notes("Новая заметка")), updated_at);
+        client
+            .update_notes(Some(client_notes("Новая заметка")), updated_at)
+            .unwrap();
 
         assert_eq!(client.notes().unwrap().as_str(), "Новая заметка");
         assert_eq!(*client.updated_at(), updated_at);
@@ -587,7 +624,7 @@ mod tests {
             created_at,
         );
 
-        client.update_notes(None, updated_at);
+        client.update_notes(None, updated_at).unwrap();
 
         assert!(client.notes().is_none());
         assert_eq!(*client.updated_at(), updated_at);
@@ -607,10 +644,35 @@ mod tests {
             created_at,
         );
 
-        client.clear_notes(updated_at);
+        client.clear_notes(updated_at).unwrap();
 
         assert!(client.notes().is_none());
         assert_eq!(*client.created_at(), created_at);
         assert_eq!(*client.updated_at(), updated_at);
+    }
+
+    /// Все публичные мутации проходят через `touch`. Если время изменения
+    /// раньше создания клиента, метод должен вернуть ошибку и оставить состояние
+    /// без изменений.
+    #[test]
+    fn rename_rejects_timestamp_before_created_at_without_changing_state() {
+        let created_at = fixed_time(1_700_000_000);
+        let invalid_updated_at = fixed_time(1_699_999_999);
+        let mut client = Client::new(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            Some(client_notes("Заметка")),
+            created_at,
+        );
+
+        let error = client
+            .rename(client_name("Петр"), invalid_updated_at)
+            .unwrap_err();
+
+        assert_eq!(error, ClientError::UpdatedAtBeforeCreatedAt);
+        assert_eq!(client.name().as_str(), "Иван");
+        assert_eq!(client.notes().unwrap().as_str(), "Заметка");
+        assert_eq!(*client.updated_at(), created_at);
     }
 }
