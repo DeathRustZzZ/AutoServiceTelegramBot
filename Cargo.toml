@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "crates/garage-domain",
+    "crates/garage-app",
+    "crates/garage-infra",
+    "apps/telegram-bot"
+]
+resolver = "2"
+
