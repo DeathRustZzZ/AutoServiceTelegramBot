@@ -111,3 +111,90 @@ impl PhoneNumber {
         &self.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{PhoneNumber, PhoneNumberError};
+
+    /// Проверяем основной happy path: международный белорусский номер уже
+    /// содержит код страны, а парсер только приводит внешний вид к канону.
+    #[test]
+    fn parse_accepts_international_number_with_visual_separators() {
+        let phone = PhoneNumber::parse("+375 (29) 123-45-67").unwrap();
+
+        assert_eq!(phone.as_str(), "+375291234567");
+    }
+
+    /// Пользователь может прислать номер без плюса. Для домена это тот же самый
+    /// международный формат, поэтому результат должен быть идентичным.
+    #[test]
+    fn parse_accepts_international_number_without_plus() {
+        let phone = PhoneNumber::parse("375291234567").unwrap();
+
+        assert_eq!(phone.as_str(), "+375291234567");
+    }
+
+    /// Локальная запись через `80` поддерживается ради пользовательского ввода,
+    /// но внутри системы все равно хранится международный `+375`.
+    #[test]
+    fn parse_normalizes_local_belarus_number_to_international_format() {
+        let phone = PhoneNumber::parse("8 029 123 45 67").unwrap();
+
+        assert_eq!(phone.as_str(), "+375291234567");
+    }
+
+    /// Пробелы по краям не должны ломать валидный номер: это типичный шум из
+    /// Telegram-сообщений, copy-paste и HTML-форм.
+    #[test]
+    fn parse_ignores_outer_whitespace() {
+        let phone = PhoneNumber::parse("  +375291234567  ").unwrap();
+
+        assert_eq!(phone.as_str(), "+375291234567");
+    }
+
+    /// Пустой ввод выделен в отдельную ошибку, чтобы прикладной слой мог
+    /// показать более точное сообщение пользователю.
+    #[test]
+    fn parse_rejects_empty_input() {
+        let error = PhoneNumber::parse("   ").unwrap_err();
+
+        assert_eq!(error, PhoneNumberError::Empty);
+    }
+
+    /// Если после очистки цифр номер не похож ни на `375...`, ни на `80...`,
+    /// это форматная ошибка, а не отсутствие значения.
+    #[test]
+    fn parse_rejects_unsupported_country_code() {
+        let error = PhoneNumber::parse("+7 (999) 123-45-67").unwrap_err();
+
+        assert_eq!(error, PhoneNumberError::InvalidFormat);
+    }
+
+    /// Длина важна так же, как и префикс: номер с кодом страны, но без нужного
+    /// количества цифр нельзя считать валидным доменным значением.
+    #[test]
+    fn parse_rejects_number_with_invalid_length() {
+        let error = PhoneNumber::parse("+37529123456").unwrap_err();
+
+        assert_eq!(error, PhoneNumberError::InvalidFormat);
+    }
+
+    /// `Display` не форматирует номер заново, а показывает уже сохраненный
+    /// канонический вид. Это защищает UI и логи от разных представлений номера.
+    #[test]
+    fn display_returns_canonical_phone_number() {
+        let phone = PhoneNumber::parse("8 (029) 123-45-67").unwrap();
+
+        assert_eq!(phone.to_string(), "+375291234567");
+    }
+
+    /// `as_str` должен отдавать ссылку на каноническое значение без копирования.
+    /// Для вызывающего кода это основной путь сохранить номер в БД или отправить
+    /// его во внешний API.
+    #[test]
+    fn as_str_returns_canonical_phone_number() {
+        let phone = PhoneNumber::parse("+375-29-123-45-67").unwrap();
+
+        assert_eq!(phone.as_str(), "+375291234567");
+    }
+}
