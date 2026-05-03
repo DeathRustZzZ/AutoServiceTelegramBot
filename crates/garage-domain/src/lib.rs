@@ -8,3 +8,5 @@ pub mod phone;
 pub mod repair;
 
 pub use ids::*;
+pub use money::*;
+pub use phone::*;
