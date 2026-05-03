@@ -6,3 +6,5 @@ pub mod money;
 pub mod part;
 pub mod phone;
 pub mod repair;
+
+pub use ids::*;
