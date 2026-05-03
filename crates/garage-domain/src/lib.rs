@@ -7,6 +7,7 @@ pub mod part;
 pub mod phone;
 pub mod repair;
 
+pub use car::*;
 pub use client::*;
 pub use ids::*;
 pub use money::*;
