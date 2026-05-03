@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "crates/garage-domain",
-    "crates/garage-app",
-    "crates/garage-infra",
-    "apps/garage-telegram",
+  "crates/garage-domain",
+  "crates/garage-app",
+  "crates/garage-infra",
+  "apps/garage-telegram",
 ]
 resolver = "2"
 
@@ -20,21 +20,21 @@ garage-infra = { path = "crates/garage-infra" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 serde = { version = "1", features = ["derive"] }
-thiserror = "1"
+thiserror = "2.0.18"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 async-trait = "0.1"
 
 sqlx = { version = "0.8", features = [
-    "runtime-tokio",
-    "tls-rustls",
-    "postgres",
-    "uuid",
-    "chrono",
-    "migrate",
+  "runtime-tokio",
+  "tls-rustls",
+  "postgres",
+  "uuid",
+  "chrono",
+  "migrate",
 ] }
 
-teloxide = { version = "0.13", features = ["macros"] }
+teloxide = { version = "0.17.0", features = ["macros"] }
 dotenvy = "0.15"
 tracing = "0.1"
 tracing-subscriber = "0.3"
