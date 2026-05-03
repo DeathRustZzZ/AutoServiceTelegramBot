@@ -57,7 +57,7 @@ pub struct Car {
     /// как фиктивный `0`.
     year: Option<CarYear>,
     /// Опциональный регистрационный номер в нормализованном виде.
-    plate_number: Option<LicensePlate>,
+    license_plate: Option<LicensePlate>,
     /// Опциональный VIN в нормализованном виде.
     vin: Option<Vin>,
     /// Опциональная заметка по автомобилю.
@@ -88,7 +88,7 @@ impl Car {
         make: CarMake,
         model: CarModel,
         year: Option<CarYear>,
-        plate_number: Option<LicensePlate>,
+        license_plate: Option<LicensePlate>,
         vin: Option<Vin>,
         notes: Option<CarNotes>,
         now: DateTime<Utc>,
@@ -99,7 +99,7 @@ impl Car {
             make,
             model,
             year,
-            plate_number,
+            license_plate,
             vin,
             notes,
             created_at: now,
@@ -125,7 +125,7 @@ impl Car {
         make: CarMake,
         model: CarModel,
         year: Option<CarYear>,
-        plate_number: Option<LicensePlate>,
+        license_plate: Option<LicensePlate>,
         vin: Option<Vin>,
         notes: Option<CarNotes>,
         created_at: DateTime<Utc>,
@@ -141,7 +141,7 @@ impl Car {
             make,
             model,
             year,
-            plate_number,
+            license_plate,
             vin,
             notes,
             created_at,
@@ -177,8 +177,8 @@ impl Car {
     }
 
     /// Возвращает регистрационный номер, если он был указан.
-    pub fn plate_number(&self) -> Option<&LicensePlate> {
-        self.plate_number.as_ref()
+    pub fn license_plate(&self) -> Option<&LicensePlate> {
+        self.license_plate.as_ref()
     }
 
     /// Возвращает VIN, если он был указан.
@@ -243,13 +243,13 @@ impl Car {
     /// Заменяет регистрационный номер и фиксирует момент изменения.
     ///
     /// `None` означает, что номер неизвестен или был очищен пользователем.
-    pub fn update_plate_number(
+    pub fn update_license_plate(
         &mut self,
-        plate_number: Option<LicensePlate>,
+        license_plate: Option<LicensePlate>,
         now: DateTime<Utc>,
     ) -> Result<(), CarError> {
         self.touch(now)?;
-        self.plate_number = plate_number;
+        self.license_plate = license_plate;
         Ok(())
     }
 
@@ -976,7 +976,7 @@ mod tests {
         assert_eq!(car.make().as_str(), "Toyota");
         assert_eq!(car.model().as_str(), "Camry");
         assert_eq!(car.year().unwrap().value(), 2020);
-        assert_eq!(car.plate_number().unwrap().as_str(), "1234AB7");
+        assert_eq!(car.license_plate().unwrap().as_str(), "1234AB7");
         assert_eq!(car.vin().unwrap().as_str(), "1HGCM82633A004352");
         assert_eq!(car.notes().unwrap().as_str(), "Первичный осмотр");
         assert_eq!(*car.created_at(), now);
@@ -1006,7 +1006,7 @@ mod tests {
         assert_eq!(car.make().as_str(), "BMW");
         assert_eq!(car.model().as_str(), "X5");
         assert_eq!(car.year().unwrap().value(), 2021);
-        assert!(car.plate_number().is_none());
+        assert!(car.license_plate().is_none());
         assert!(car.vin().is_none());
         assert!(car.notes().is_none());
         assert_eq!(*car.created_at(), created_at);
@@ -1078,33 +1078,33 @@ mod tests {
 
     /// Номер можно заменить или очистить, а `updated_at` должен измениться.
     #[test]
-    fn update_plate_number_replaces_and_clears_plate() {
+    fn update_license_plate_replaces_and_clears_plate() {
         let created_at = fixed_time(1_700_000_000);
         let first_update = fixed_time(1_700_000_100);
         let second_update = fixed_time(1_700_000_200);
         let mut car = full_car(created_at);
 
-        car.update_plate_number(Some(license_plate("7777 aa-7")), first_update)
+        car.update_license_plate(Some(license_plate("7777 aa-7")), first_update)
             .unwrap();
-        assert_eq!(car.plate_number().unwrap().as_str(), "7777AA7");
+        assert_eq!(car.license_plate().unwrap().as_str(), "7777AA7");
         assert_eq!(*car.updated_at(), first_update);
 
-        car.update_plate_number(None, second_update).unwrap();
-        assert!(car.plate_number().is_none());
+        car.update_license_plate(None, second_update).unwrap();
+        assert!(car.license_plate().is_none());
         assert_eq!(*car.updated_at(), second_update);
     }
 
     /// Некорректное время не должно очищать или заменять номер.
     #[test]
-    fn update_plate_number_rejects_time_before_creation_without_changes() {
+    fn update_license_plate_rejects_time_before_creation_without_changes() {
         let created_at = fixed_time(1_700_000_000);
         let invalid_time = fixed_time(1_699_999_999);
         let mut car = full_car(created_at);
 
-        let error = car.update_plate_number(None, invalid_time).unwrap_err();
+        let error = car.update_license_plate(None, invalid_time).unwrap_err();
 
         assert_eq!(error, CarError::UpdatedAtBeforeCreatedAt);
-        assert_eq!(car.plate_number().unwrap().as_str(), "1234AB7");
+        assert_eq!(car.license_plate().unwrap().as_str(), "1234AB7");
         assert_eq!(*car.updated_at(), created_at);
     }
 
