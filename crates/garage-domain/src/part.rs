@@ -643,6 +643,7 @@ mod tests {
         )
     }
 
+    // Базовая валидация обязательного названия.
     #[test]
     fn part_name_parse_trims_valid_name() {
         let name = PartName::parse("  Brake pads  ").unwrap();
@@ -680,6 +681,7 @@ mod tests {
         );
     }
 
+    // SKU необязателен, но непустое значение нормализуется для поиска.
     #[test]
     fn part_sku_parse_normalizes_case_and_whitespace() {
         let sku = PartSku::parse("  ab-12/c  ").unwrap().unwrap();
@@ -718,6 +720,7 @@ mod tests {
         );
     }
 
+    // Остаток проверяется через checked-арифметику без отрицательных значений.
     #[test]
     fn part_quantity_exposes_value_zero_and_display() {
         let zero = PartQuantity::zero();
@@ -771,6 +774,7 @@ mod tests {
         );
     }
 
+    // Заметка ведет себя как optional text field: пустой ввод превращается в None.
     #[test]
     fn part_notes_parse_trims_non_empty_notes() {
         let notes = PartNotes::parse("  Shelf A1  ").unwrap().unwrap();
@@ -808,6 +812,7 @@ mod tests {
         );
     }
 
+    // Создание и восстановление фиксируют ключевой инвариант дат.
     #[test]
     fn part_new_sets_initial_state_and_timestamps() {
         let now = fixed_time();
@@ -867,6 +872,7 @@ mod tests {
         assert_eq!(error, PartError::UpdatedAtBeforeCreatedAt);
     }
 
+    // Low stock срабатывает на границе минимального остатка.
     #[test]
     fn stock_status_distinguishes_low_and_out_of_stock() {
         let low = Part::new(
@@ -907,6 +913,7 @@ mod tests {
         assert!(empty.is_out_of_stock());
     }
 
+    // Редактирование карточки обновляет timestamp и не мутирует состояние при ошибке.
     #[test]
     fn update_name_changes_name_and_updates_timestamp() {
         let mut part = part_fixture();
@@ -1006,6 +1013,7 @@ mod tests {
         assert_eq!(*part.updated_at(), later_time());
     }
 
+    // Складские операции атомарны: ошибка не должна менять остаток или updated_at.
     #[test]
     fn increase_stock_adds_quantity_and_updates_timestamp() {
         let mut part = part_fixture();
