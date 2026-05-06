@@ -1580,4 +1580,21 @@ mod tests {
         assert_eq!(repair.description().as_str(), "Замена сцепления");
         assert_eq!(*repair.updated_at(), now);
     }
+
+    #[test]
+    fn cancelled_repair_rejects_new_payment() {
+        let now = fixed_time(1_700_000_000);
+        let cancelled_at = fixed_time(1_700_000_100);
+        let paid_at = fixed_time(1_700_000_200);
+
+        let mut repair = in_progress_repair(now);
+
+        repair.cancel(cancelled_at).unwrap();
+
+        let error = repair.record_payment(byn(1_000), paid_at).unwrap_err();
+
+        assert_eq!(error, RepairError::CannotRecordPaymentForCancelledRepair);
+        assert_eq!(repair.paid_amount(), byn(0));
+        assert_eq!(*repair.updated_at(), cancelled_at);
+    }
 }
