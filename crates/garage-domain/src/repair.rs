@@ -189,6 +189,11 @@ pub struct Repair {
     /// Автомобиль, по которому выполняется ремонт.
     car_id: CarId,
     /// Запись на обслуживание, из которой мог быть создан ремонт.
+    ///
+    /// Связь задается при `new` или `restore`. Методы attach/detach на текущем
+    /// этапе не добавляются в domain: перепривязка требует проверки клиента,
+    /// автомобиля и статуса booking, поэтому это будущий application-layer
+    /// сценарий.
     booking_id: Option<BookingId>,
     /// Текущий статус работ.
     status: RepairStatus,
@@ -235,7 +240,7 @@ impl Repair {
     ) -> Result<Self, RepairError> {
         let paid_amount = Money::zero(labor_price.currency());
 
-        Self::ensure_same_currency(labor_price, parts_price, parts_cost, paid_amount)?;
+        Self::ensure_same_currency(&[labor_price, parts_price, parts_cost, paid_amount])?;
 
         Ok(Self {
             id,
@@ -288,7 +293,7 @@ impl Repair {
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, RepairError> {
-        Self::ensure_same_currency(labor_price, parts_price, parts_cost, paid_amount)?;
+        Self::ensure_same_currency(&[labor_price, parts_price, parts_cost, paid_amount])?;
 
         if created_at < started_at {
             return Err(RepairError::CreatedAtBeforeStartedAt);
@@ -476,8 +481,11 @@ impl Repair {
 
     /// Вычисляет статус оплаты из суммы оплат и итоговой стоимости.
     ///
-    /// Статус оплаты не хранится отдельно, чтобы не было рассинхронизации между
-    /// числом оплат и enum-ом.
+    /// `PaymentStatus` не хранится отдельно, чтобы не было рассинхронизации
+    /// между суммой оплат и enum-ом. Метод возвращает `Result`, потому что
+    /// внутри считает `total_price()`, а тот использует checked-арифметику. В
+    /// нормальном валидном состоянии ошибка маловероятна, но domain не должен
+    /// скрывать overflow.
     pub fn payment_status(&self) -> Result<PaymentStatus, RepairError> {
         let total_price = self.total_price()?;
 
@@ -556,7 +564,7 @@ impl Repair {
         now: DateTime<Utc>,
     ) -> Result<(), RepairError> {
         self.ensure_in_progress_for_modification()?;
-        Self::ensure_same_currency(labor_price, parts_price, parts_cost, self.paid_amount)?;
+        Self::ensure_same_currency(&[labor_price, parts_price, parts_cost, self.paid_amount])?;
 
         let total_price = Self::calculate_total_price(labor_price, parts_price)?;
 
@@ -652,7 +660,10 @@ impl Repair {
     /// Закрывает ремонт как отмененный.
     ///
     /// Отмена не имеет `completed_at`: это не завершенная работа, а закрытый
-    /// сценарий без результата ремонта.
+    /// сценарий без результата ремонта. Она не откатывает уже внесенные
+    /// оплаты: возврат денег, сторнирование или корректировка оплаты являются
+    /// отдельным application-layer сценарием. Domain только запрещает новые
+    /// оплаты для `Cancelled` ремонта.
     pub fn cancel(&mut self, now: DateTime<Utc>) -> Result<(), RepairError> {
         self.ensure_in_progress_for_transition(RepairStatus::Cancelled)?;
         self.touch(now)?;
@@ -663,8 +674,9 @@ impl Repair {
 
     /// Обновляет `updated_at`, сохраняя временной инвариант.
     ///
-    /// Метод приватный: публичные операции вызывают его после доменных проверок
-    /// и до мутации конкретного поля.
+    /// `touch` сам является мутацией. Публичные операции должны выполнять все
+    /// fallible-проверки до `touch`; после него не должно быть проверок,
+    /// которые могут вернуть ошибку, иначе операция может потерять атомарность.
     fn touch(&mut self, now: DateTime<Utc>) -> Result<(), RepairError> {
         if now < self.created_at {
             return Err(RepairError::UpdatedAtBeforeCreatedAt);
@@ -712,19 +724,14 @@ impl Repair {
     ///
     /// Автоматическая конвертация здесь недопустима: курс, дата курса и правила
     /// округления относятся к отдельному прикладному сценарию.
-    fn ensure_same_currency(
-        labor_price: Money,
-        parts_price: Money,
-        parts_cost: Money,
-        paid_amount: Money,
-    ) -> Result<(), RepairError> {
-        let expected = labor_price.currency();
+    fn ensure_same_currency(values: &[Money]) -> Result<(), RepairError> {
+        let Some((first, rest)) = values.split_first() else {
+            return Ok(());
+        };
+        let expected = first.currency();
 
-        for actual in [
-            parts_price.currency(),
-            parts_cost.currency(),
-            paid_amount.currency(),
-        ] {
+        for value in rest {
+            let actual = value.currency();
             if actual != expected {
                 return Err(RepairError::CurrencyMismatch { expected, actual });
             }
@@ -1096,6 +1103,30 @@ mod tests {
             repair.profit().unwrap(),
             SignedMoney::new(1_000, Currency::Byn)
         );
+    }
+
+    /// Статус оплаты вычисляется из текущей суммы оплат и итоговой цены.
+    #[test]
+    fn payment_status_returns_unpaid_partial_and_paid() {
+        let now = fixed_time(1_700_000_000);
+        let mut repair = in_progress_repair(now);
+
+        assert_eq!(repair.payment_status().unwrap(), PaymentStatus::Unpaid);
+
+        repair
+            .record_payment(byn(4_000), fixed_time(1_700_000_100))
+            .unwrap();
+
+        assert_eq!(
+            repair.payment_status().unwrap(),
+            PaymentStatus::PartiallyPaid
+        );
+
+        repair
+            .record_payment(byn(11_000), fixed_time(1_700_000_200))
+            .unwrap();
+
+        assert_eq!(repair.payment_status().unwrap(), PaymentStatus::Paid);
     }
 
     /// Восстановление принимает корректный завершенный ремонт с датой завершения.
@@ -1490,6 +1521,24 @@ mod tests {
         assert_eq!(repair.status(), RepairStatus::Cancelled);
         assert!(repair.is_cancelled());
         assert!(repair.is_terminal());
+        assert_eq!(repair.completed_at(), None);
+        assert_eq!(*repair.updated_at(), cancelled_at);
+    }
+
+    /// Отмена сохраняет уже внесенную оплату; возврат денег остается сценарием
+    /// прикладного слоя.
+    #[test]
+    fn cancel_preserves_existing_payment_without_completed_at() {
+        let now = fixed_time(1_700_000_000);
+        let paid_at = fixed_time(1_700_000_100);
+        let cancelled_at = fixed_time(1_700_000_200);
+        let mut repair = in_progress_repair(now);
+
+        repair.record_payment(byn(4_000), paid_at).unwrap();
+        repair.cancel(cancelled_at).unwrap();
+
+        assert_eq!(repair.status(), RepairStatus::Cancelled);
+        assert_eq!(repair.paid_amount(), byn(4_000));
         assert_eq!(repair.completed_at(), None);
         assert_eq!(*repair.updated_at(), cancelled_at);
     }
