@@ -201,6 +201,135 @@ impl Money {
     }
 }
 
+/// Денежная сумма, которая может быть отрицательной.
+///
+/// `Money` специально запрещает отрицательные значения, потому что цены,
+/// оплаты и остатки к оплате в домене должны быть неотрицательными. Но для
+/// аналитики ремонта нужен другой тип: фактическая прибыль может быть ниже
+/// нуля, если клиент оплатил меньше себестоимости запчастей.
+///
+/// Поэтому `SignedMoney` используется для расчетных показателей вроде прибыли,
+/// убытка и будущих корректировок. Валюта остается частью значения, а вся
+/// арифметика по-прежнему требует совпадения валют.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SignedMoney {
+    /// Сумма в минимальных единицах валюты. Может быть отрицательной.
+    amount_minor: i64,
+    /// Валюта суммы.
+    currency: Currency,
+}
+
+impl SignedMoney {
+    /// Создает signed-сумму без запрета отрицательных значений.
+    ///
+    /// В отличие от `Money::new`, этот конструктор не возвращает `Result`:
+    /// отрицательные значения являются валидной частью модели.
+    pub fn new(amount_minor: i64, currency: Currency) -> Self {
+        Self {
+            amount_minor,
+            currency,
+        }
+    }
+
+    /// Создает нулевую signed-сумму в указанной валюте.
+    pub fn zero(currency: Currency) -> Self {
+        Self {
+            amount_minor: 0,
+            currency,
+        }
+    }
+
+    /// Возвращает сумму в минимальных единицах валюты.
+    pub fn amount_minor(&self) -> i64 {
+        self.amount_minor
+    }
+
+    /// Возвращает валюту суммы.
+    pub fn currency(&self) -> Currency {
+        self.currency
+    }
+
+    /// Проверяет, что сумма больше нуля.
+    pub fn is_positive(&self) -> bool {
+        self.amount_minor > 0
+    }
+
+    /// Проверяет, что сумма равна нулю.
+    pub fn is_zero(&self) -> bool {
+        self.amount_minor == 0
+    }
+
+    /// Проверяет, что сумма меньше нуля.
+    pub fn is_negative(&self) -> bool {
+        self.amount_minor < 0
+    }
+
+    /// Безопасно складывает две signed-суммы одной валюты.
+    ///
+    /// Валюты должны совпадать, а переполнение `i64` возвращается как ошибка.
+    pub fn checked_add(self, other: Self) -> Result<Self, MoneyError> {
+        self.ensure_same_currency(other)?;
+
+        let amount_minor = self
+            .amount_minor
+            .checked_add(other.amount_minor)
+            .ok_or(MoneyError::Overflow)?;
+
+        Ok(Self::new(amount_minor, self.currency))
+    }
+
+    /// Безопасно вычитает одну signed-сумму из другой.
+    ///
+    /// В отличие от `Money::checked_sub`, отрицательный результат разрешен.
+    pub fn checked_sub(self, other: Self) -> Result<Self, MoneyError> {
+        self.ensure_same_currency(other)?;
+
+        let amount_minor = self
+            .amount_minor
+            .checked_sub(other.amount_minor)
+            .ok_or(MoneyError::Overflow)?;
+
+        Ok(Self::new(amount_minor, self.currency))
+    }
+
+    /// Проверяет, что две signed-суммы выражены в одной валюте.
+    fn ensure_same_currency(self, other: Self) -> Result<(), MoneyError> {
+        if self.currency != other.currency {
+            return Err(MoneyError::CurrencyMismatch {
+                left: self.currency,
+                right: other.currency,
+            });
+        }
+
+        Ok(())
+    }
+}
+
+/// Переводит обычные неотрицательные деньги в signed-представление.
+///
+/// Это используется в расчетах прибыли: входные цены и оплаты остаются
+/// `Money`, а результат вычисления может стать `SignedMoney`.
+impl From<Money> for SignedMoney {
+    fn from(value: Money) -> Self {
+        Self {
+            amount_minor: value.amount_minor(),
+            currency: value.currency(),
+        }
+    }
+}
+
+/// Форматирует signed-сумму в человекочитаемый вид `[-]major.minor CURRENCY`.
+impl std::fmt::Display for SignedMoney {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let sign = if self.amount_minor < 0 { "-" } else { "" };
+        let abs = self.amount_minor.abs();
+        let major = abs / 100;
+        let minor = abs % 100;
+
+        write!(f, "{}{}.{:02} {}", sign, major, minor, self.currency)
+    }
+}
+
 /// Форматирует сумму в человекочитаемый вид `major.minor CURRENCY`.
 ///
 /// Алгоритм форматирования:
@@ -251,7 +380,7 @@ pub enum MoneyError {
 
 #[cfg(test)]
 mod tests {
-    use super::{Currency, Money, MoneyError};
+    use super::{Currency, Money, MoneyError, SignedMoney};
 
     /// Базовый конструктор должен сохранять сумму и валюту без скрытых
     /// преобразований: вызывающий код уже передает значение в minor units.
@@ -403,5 +532,100 @@ mod tests {
         let error = left.checked_sub(right).unwrap_err();
 
         assert_eq!(error, MoneyError::NegativeAmount);
+    }
+
+    /// Signed-сумма допускает отрицательные значения и сохраняет валюту.
+    #[test]
+    fn signed_money_new_allows_negative_amount() {
+        let money = SignedMoney::new(-150, Currency::Byn);
+
+        assert_eq!(money.amount_minor(), -150);
+        assert_eq!(money.currency(), Currency::Byn);
+        assert!(money.is_negative());
+        assert!(!money.is_zero());
+        assert!(!money.is_positive());
+    }
+
+    /// Нулевая signed-сумма нужна как нейтральное значение для расчетов.
+    #[test]
+    fn signed_money_zero_creates_zero_amount() {
+        let money = SignedMoney::zero(Currency::Usd);
+
+        assert_eq!(money.amount_minor(), 0);
+        assert_eq!(money.currency(), Currency::Usd);
+        assert!(money.is_zero());
+    }
+
+    /// Обычные деньги можно безопасно перевести в signed-представление для
+    /// расчетов прибыли.
+    #[test]
+    fn signed_money_from_money_preserves_amount_and_currency() {
+        let money = Money::byn_minor(1250).unwrap();
+
+        let signed = SignedMoney::from(money);
+
+        assert_eq!(signed.amount_minor(), 1250);
+        assert_eq!(signed.currency(), Currency::Byn);
+        assert!(signed.is_positive());
+    }
+
+    /// Signed-сложение работает с отрицательными и положительными значениями
+    /// без запрета отрицательного результата.
+    #[test]
+    fn signed_money_checked_add_adds_values() {
+        let left = SignedMoney::new(-300, Currency::Byn);
+        let right = SignedMoney::new(100, Currency::Byn);
+
+        let result = left.checked_add(right).unwrap();
+
+        assert_eq!(result, SignedMoney::new(-200, Currency::Byn));
+    }
+
+    /// Signed-вычитание может вернуть отрицательный результат, что нужно для
+    /// расчета убытка.
+    #[test]
+    fn signed_money_checked_sub_allows_negative_result() {
+        let left = SignedMoney::new(100, Currency::Byn);
+        let right = SignedMoney::new(350, Currency::Byn);
+
+        let result = left.checked_sub(right).unwrap();
+
+        assert_eq!(result, SignedMoney::new(-250, Currency::Byn));
+    }
+
+    /// Арифметика signed-сумм так же запрещает смешивать валюты.
+    #[test]
+    fn signed_money_checked_add_rejects_currency_mismatch() {
+        let left = SignedMoney::new(100, Currency::Byn);
+        let right = SignedMoney::new(100, Currency::Usd);
+
+        let error = left.checked_add(right).unwrap_err();
+
+        assert_eq!(
+            error,
+            MoneyError::CurrencyMismatch {
+                left: Currency::Byn,
+                right: Currency::Usd,
+            }
+        );
+    }
+
+    /// Переполнение signed-арифметики должно возвращаться как явная ошибка.
+    #[test]
+    fn signed_money_checked_sub_rejects_integer_overflow() {
+        let left = SignedMoney::new(i64::MIN, Currency::Byn);
+        let right = SignedMoney::new(1, Currency::Byn);
+
+        let error = left.checked_sub(right).unwrap_err();
+
+        assert_eq!(error, MoneyError::Overflow);
+    }
+
+    /// Display должен сохранять знак и ведущий ноль в minor part.
+    #[test]
+    fn signed_money_display_formats_negative_amount() {
+        let money = SignedMoney::new(-1005, Currency::Byn);
+
+        assert_eq!(money.to_string(), "-10.05 BYN");
     }
 }
