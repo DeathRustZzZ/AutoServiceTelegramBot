@@ -244,6 +244,7 @@ impl Booking {
     /// 3. Если обновление раньше создания, состояние считается поврежденным и
     ///    возвращается `UpdatedAtBeforeCreatedAt`.
     /// 4. Иначе сущность собирается без изменения переданных дат и статуса.
+    #[allow(clippy::too_many_arguments)]
     pub fn restore(
         id: BookingId,
         client_id: ClientId,

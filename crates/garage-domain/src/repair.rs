@@ -220,6 +220,7 @@ impl Repair {
     /// Финансовые поля должны быть в одной валюте. Оплаченная сумма при
     /// создании всегда равна нулю в валюте стоимости работ. Один момент `now`
     /// записывается в `started_at`, `created_at` и `updated_at`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: RepairId,
         client_id: ClientId,

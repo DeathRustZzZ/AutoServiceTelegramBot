@@ -82,6 +82,7 @@ impl Car {
     ///
     /// Метод не возвращает `Result`, потому что при таких типах входных данных
     /// временной инвариант нарушить невозможно.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: CarId,
         client_id: ClientId,
@@ -119,6 +120,7 @@ impl Car {
     /// 3. Если обновление оказалось раньше создания, состояние считается
     ///    поврежденным и возвращается `UpdatedAtBeforeCreatedAt`.
     /// 4. Иначе сущность собирается без изменения переданных дат.
+    #[allow(clippy::too_many_arguments)]
     pub fn restore(
         id: CarId,
         client_id: ClientId,

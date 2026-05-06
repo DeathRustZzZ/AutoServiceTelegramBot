@@ -36,6 +36,12 @@ impl ClientId {
     }
 }
 
+impl Default for ClientId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Идентификатор автомобиля.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CarId(Uuid);
@@ -59,6 +65,12 @@ impl CarId {
     /// типобезопасность внутри доменной модели.
     pub fn as_uuid(&self) -> Uuid {
         self.0
+    }
+}
+
+impl Default for CarId {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -87,6 +99,13 @@ impl BookingId {
         self.0
     }
 }
+
+impl Default for BookingId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Идентификатор поставки запчасти.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PartSupplyId(Uuid);
@@ -107,6 +126,13 @@ impl PartSupplyId {
         self.0
     }
 }
+
+impl Default for PartSupplyId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Идентификатор запчасти или расходника.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PartId(Uuid);
@@ -133,6 +159,12 @@ impl PartId {
     }
 }
 
+impl Default for PartId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Идентификатор ремонта.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RepairId(Uuid);
@@ -156,5 +188,11 @@ impl RepairId {
     /// типобезопасность внутри доменной модели.
     pub fn as_uuid(&self) -> Uuid {
         self.0
+    }
+}
+
+impl Default for RepairId {
+    fn default() -> Self {
+        Self::new()
     }
 }
