@@ -87,7 +87,26 @@ impl BookingId {
         self.0
     }
 }
+/// Идентификатор поставки запчасти.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PartSupplyId(Uuid);
 
+impl PartSupplyId {
+    /// Создает новый идентификатор для поставки запчасти.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Восстанавливает идентификатор поставки из UUID, полученного из внешнего слоя.
+    pub fn from_uuid(value: Uuid) -> Self {
+        Self(value)
+    }
+
+    /// Возвращает сырой UUID для слоев инфраструктуры.
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
 /// Идентификатор запчасти или расходника.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PartId(Uuid);

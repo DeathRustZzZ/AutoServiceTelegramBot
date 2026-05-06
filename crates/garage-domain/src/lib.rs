@@ -4,6 +4,7 @@ pub mod client;
 pub mod ids;
 pub mod money;
 pub mod part;
+pub mod part_supply;
 pub mod phone;
 pub mod repair;
 
@@ -11,4 +12,7 @@ pub use car::*;
 pub use client::*;
 pub use ids::*;
 pub use money::*;
+pub use part::*;
+pub use part_supply::*;
 pub use phone::*;
+pub use repair::*;
