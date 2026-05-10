@@ -20,3 +20,6 @@ pub use part::*;
 pub use part_supply::*;
 pub use repair::*;
 pub use statistics::*;
+
+#[cfg(test)]
+mod tests;
