@@ -1,13 +1,22 @@
+//! Сценарии работы с автомобилями клиента.
+//!
+//! Автомобиль является отдельным агрегатом, но почти все пользовательские
+//! сценарии приходят в форме `client_id + car_id`. Поэтому сервис отвечает за
+//! cross-aggregate проверку: машина должна принадлежать указанному клиенту.
+//! Сам домен `Car` не ходит в репозитории и не может проверить существование
+//! владельца.
+
 use chrono::{DateTime, Utc};
 use garage_domain::{
-    Car, CarId, CarMake, CarModel, CarNotes, CarYear, ClientId, LicensePlate, Vin,
+    Car, CarDocumentPhotoRef, CarId, CarMake, CarModel, CarNotes, CarYear, ClientId, LicensePlate,
+    Vin,
 };
 
 use crate::{AppResult, CarRepository, ClientRepository};
 
-use super::common::{require_car, require_client};
+use super::common::{ensure_car_belongs_to_client, require_car, require_client};
 
-/// Use cases for cars.
+/// Application service для автомобилей.
 pub struct CarService<Clients, Cars> {
     clients: Clients,
     cars: Cars,
@@ -18,10 +27,20 @@ where
     Clients: ClientRepository,
     Cars: CarRepository,
 {
+    /// Создает сервис поверх портов клиентов и автомобилей.
     pub fn new(clients: Clients, cars: Cars) -> Self {
         Self { clients, cars }
     }
 
+    /// Создает автомобиль для существующего клиента.
+    ///
+    /// Алгоритм:
+    /// 1. Проверяем, что клиент существует.
+    /// 2. Создаем `Car` через доменную модель.
+    /// 3. Сохраняем автомобиль.
+    ///
+    /// Значения марки, модели, номера, VIN и заметок уже должны быть
+    /// проверенными value objects.
     #[allow(clippy::too_many_arguments)]
     pub async fn create_car(
         &self,
@@ -50,6 +69,11 @@ where
         Ok(car)
     }
 
+    /// Обновляет идентификационные данные автомобиля.
+    ///
+    /// В domain слой изменения разделены на методы `update_identity`,
+    /// `update_license_plate` и `update_vin`. Здесь они объединены в один
+    /// пользовательский сценарий редактирования карточки авто.
     #[allow(clippy::too_many_arguments)]
     pub async fn update_identity(
         &self,
@@ -69,8 +93,52 @@ where
         Ok(car)
     }
 
+    /// Возвращает автомобили клиента.
+    ///
+    /// Сначала проверяется существование клиента, чтобы UI получил точную
+    /// ошибку `ClientNotFound`, а не пустой список для несуществующего клиента.
     pub async fn list_client_cars(&self, client_id: ClientId) -> AppResult<Vec<Car>> {
         require_client(&self.clients, client_id).await?;
         self.cars.list_by_client(client_id).await
+    }
+
+    /// Сохраняет ссылку на фото техпаспорта / СТС автомобиля.
+    ///
+    /// Сервис принимает нейтральный `CarDocumentPhotoRef`: это может быть
+    /// Telegram `file_id`, ключ объектного хранилища или URL. App-layer не знает
+    /// и не должен знать источник этой строки.
+    pub async fn set_registration_document_photo(
+        &self,
+        client_id: ClientId,
+        car_id: CarId,
+        photo: CarDocumentPhotoRef,
+        now: DateTime<Utc>,
+    ) -> AppResult<Car> {
+        require_client(&self.clients, client_id).await?;
+        let mut car = require_car(&self.cars, car_id).await?;
+        ensure_car_belongs_to_client(&car, client_id)?;
+
+        car.set_registration_document_photo(photo, now)?;
+        self.cars.save(&car).await?;
+        Ok(car)
+    }
+
+    /// Удаляет ссылку на фото регистрационного документа автомобиля.
+    ///
+    /// Проверки клиента и принадлежности машины выполняются до мутации доменной
+    /// сущности, поэтому чужую машину нельзя изменить даже при валидном `car_id`.
+    pub async fn remove_registration_document_photo(
+        &self,
+        client_id: ClientId,
+        car_id: CarId,
+        now: DateTime<Utc>,
+    ) -> AppResult<Car> {
+        require_client(&self.clients, client_id).await?;
+        let mut car = require_car(&self.cars, car_id).await?;
+        ensure_car_belongs_to_client(&car, client_id)?;
+
+        car.remove_registration_document_photo(now)?;
+        self.cars.save(&car).await?;
+        Ok(car)
     }
 }

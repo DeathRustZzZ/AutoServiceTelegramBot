@@ -1,7 +1,8 @@
-//! Repository ports for application services.
+//! Порты репозиториев для application services.
 //!
-//! These traits describe persistence needs of use cases. Concrete PostgreSQL
-//! implementations belong to `garage-infra`.
+//! Traits в этом модуле описывают, какие операции хранения нужны use case'ам.
+//! Они не описывают SQL-схему и не зависят от SQLx. PostgreSQL-реализации
+//! должны жить в `garage-infra`, а тесты могут использовать in-memory fake.
 
 mod booking;
 mod car;

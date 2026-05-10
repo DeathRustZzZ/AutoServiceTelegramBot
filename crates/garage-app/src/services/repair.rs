@@ -1,3 +1,9 @@
+//! Сценарии ремонтов.
+//!
+//! Ремонт - основной финансовый агрегат системы. Сервис проверяет связи между
+//! клиентом, автомобилем и опциональной записью, а финансовые инварианты
+//! оставляет доменному `Repair`.
+
 use chrono::{DateTime, Utc};
 use garage_domain::{
     BookingId, CarId, ClientId, Money, Repair, RepairDescription, RepairId, RepairNotes,
@@ -10,10 +16,11 @@ use super::common::{
     require_car, require_client, require_repair,
 };
 
-/// Command for starting a repair.
+/// Команда запуска ремонта.
 ///
-/// `RepairService` still accepts already validated domain value objects. The
-/// command only groups use-case input; it is not an infrastructure DTO.
+/// Это не DTO базы данных и не Telegram-структура. Команда просто группирует
+/// входные параметры use case, чтобы публичная сигнатура `start_repair` не
+/// разрасталась и оставалась читаемой.
 pub struct StartRepairCommand {
     pub client_id: ClientId,
     pub car_id: CarId,
@@ -26,7 +33,7 @@ pub struct StartRepairCommand {
     pub now: DateTime<Utc>,
 }
 
-/// Use cases for repairs.
+/// Application service для ремонтов.
 pub struct RepairService<Clients, Cars, Bookings, Repairs> {
     clients: Clients,
     cars: Cars,
@@ -41,6 +48,7 @@ where
     Bookings: BookingRepository,
     Repairs: RepairRepository,
 {
+    /// Создает сервис ремонтов поверх нужных repository ports.
     pub fn new(clients: Clients, cars: Cars, bookings: Bookings, repairs: Repairs) -> Self {
         Self {
             clients,
@@ -50,6 +58,16 @@ where
         }
     }
 
+    /// Запускает ремонт.
+    ///
+    /// Алгоритм:
+    /// 1. Проверяем существование клиента.
+    /// 2. Загружаем автомобиль и проверяем принадлежность клиенту.
+    /// 3. Если указан booking, проверяем, что он относится к той же паре
+    ///    `client_id + car_id`.
+    /// 4. Создаем `Repair`; валюты, цены, себестоимость и начальный статус
+    ///    проверяются доменом.
+    /// 5. Сохраняем ремонт.
     pub async fn start_repair(&self, command: StartRepairCommand) -> AppResult<Repair> {
         require_client(&self.clients, command.client_id).await?;
         let car = require_car(&self.cars, command.car_id).await?;
@@ -76,6 +94,10 @@ where
         Ok(repair)
     }
 
+    /// Регистрирует оплату по ремонту.
+    ///
+    /// Домен разрешает оплату для ремонта в работе и завершенного ремонта, но
+    /// запрещает оплату отмененного ремонта и превышение итоговой стоимости.
     pub async fn record_payment(
         &self,
         repair_id: RepairId,
@@ -88,6 +110,10 @@ where
         Ok(repair)
     }
 
+    /// Завершает ремонт.
+    ///
+    /// Статусный переход и проверка `completed_at >= started_at` находятся в
+    /// `Repair::complete`.
     pub async fn complete_repair(
         &self,
         repair_id: RepairId,
@@ -99,6 +125,10 @@ where
         Ok(repair)
     }
 
+    /// Отменяет ремонт.
+    ///
+    /// Уже внесенные оплаты не откатываются здесь. Возвраты и корректировки
+    /// должны стать отдельными финансовыми сценариями app-layer.
     pub async fn cancel_repair(
         &self,
         repair_id: RepairId,

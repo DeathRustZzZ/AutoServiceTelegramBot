@@ -277,6 +277,10 @@ fn description(value: &str) -> RepairDescription {
     RepairDescription::parse(value).unwrap()
 }
 
+fn document_photo(value: &str) -> CarDocumentPhotoRef {
+    CarDocumentPhotoRef::new(value).unwrap()
+}
+
 fn start_repair_command(
     client_id: ClientId,
     car_id: CarId,
@@ -422,6 +426,154 @@ async fn car_service_checks_client_and_lists_client_cars() {
 }
 
 #[tokio::test]
+async fn set_registration_document_photo_fails_when_client_not_found() {
+    let store = store();
+    let existing_client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), existing_client.id(), "BMW", "X5").await;
+    let missing_client = ClientId::from_uuid(Uuid::from_u128(10));
+    let service = CarService::new(store.clone(), store);
+
+    let result = service
+        .set_registration_document_photo(
+            missing_client,
+            car.id(),
+            document_photo("telegram-file-id"),
+            ts(10),
+        )
+        .await;
+
+    assert!(matches!(result, Err(AppError::ClientNotFound(id)) if id == missing_client));
+}
+
+#[tokio::test]
+async fn set_registration_document_photo_fails_when_car_not_found() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let missing_car = CarId::from_uuid(Uuid::from_u128(11));
+    let service = CarService::new(store.clone(), store);
+
+    let result = service
+        .set_registration_document_photo(
+            client.id(),
+            missing_car,
+            document_photo("telegram-file-id"),
+            ts(10),
+        )
+        .await;
+
+    assert!(matches!(result, Err(AppError::CarNotFound(id)) if id == missing_car));
+}
+
+#[tokio::test]
+async fn set_registration_document_photo_fails_when_car_does_not_belong_to_client() {
+    let store = store();
+    let first = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let second = create_client_fixture(store.clone(), "Петр", "+375292222222").await;
+    let car = create_car_fixture(store.clone(), first.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store);
+
+    let result = service
+        .set_registration_document_photo(
+            second.id(),
+            car.id(),
+            document_photo("telegram-file-id"),
+            ts(10),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AppError::CarDoesNotBelongToClient { car_id, client_id })
+            if car_id == car.id() && client_id == second.id()
+    ));
+}
+
+#[tokio::test]
+async fn set_registration_document_photo_saves_updated_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store.clone());
+
+    let updated = service
+        .set_registration_document_photo(
+            client.id(),
+            car.id(),
+            document_photo("telegram-file-id"),
+            ts(10),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        updated.registration_document_photo().unwrap().as_str(),
+        "telegram-file-id"
+    );
+    assert_eq!(*updated.updated_at(), ts(10));
+    assert_eq!(
+        CarRepository::get(&store, car.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .registration_document_photo()
+            .unwrap()
+            .as_str(),
+        "telegram-file-id"
+    );
+}
+
+#[tokio::test]
+async fn remove_registration_document_photo_saves_updated_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store.clone());
+
+    service
+        .set_registration_document_photo(
+            client.id(),
+            car.id(),
+            document_photo("telegram-file-id"),
+            ts(10),
+        )
+        .await
+        .unwrap();
+
+    let updated = service
+        .remove_registration_document_photo(client.id(), car.id(), ts(11))
+        .await
+        .unwrap();
+
+    assert!(updated.registration_document_photo().is_none());
+    assert_eq!(*updated.updated_at(), ts(11));
+    assert!(CarRepository::get(&store, car.id())
+        .await
+        .unwrap()
+        .unwrap()
+        .registration_document_photo()
+        .is_none());
+}
+
+#[tokio::test]
+async fn remove_registration_document_photo_fails_when_car_does_not_belong_to_client() {
+    let store = store();
+    let first = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let second = create_client_fixture(store.clone(), "Петр", "+375292222222").await;
+    let car = create_car_fixture(store.clone(), first.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store);
+
+    let result = service
+        .remove_registration_document_photo(second.id(), car.id(), ts(11))
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AppError::CarDoesNotBelongToClient { car_id, client_id })
+            if car_id == car.id() && client_id == second.id()
+    ));
+}
+
+#[tokio::test]
 async fn booking_service_schedules_lists_and_transitions_bookings() {
     let store = store();
     let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
@@ -525,6 +677,39 @@ async fn get_booking_details_returns_booking_client_and_car() {
     assert_eq!(details.booking, booking);
     assert_eq!(details.client, client);
     assert_eq!(details.car, car);
+}
+
+#[tokio::test]
+async fn list_booking_details_between_returns_details_for_scheduled_bookings() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+    let booking = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            ts(12),
+            reason("Диагностика"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+    service
+        .schedule_booking(client.id(), car.id(), ts(18), reason("Позже"), None, ts(8))
+        .await
+        .unwrap();
+
+    let details = service
+        .list_booking_details_between(ts(11), ts(13))
+        .await
+        .unwrap();
+
+    assert_eq!(details.len(), 1);
+    assert_eq!(details[0].booking, booking);
+    assert_eq!(details[0].client, client);
+    assert_eq!(details[0].car, car);
 }
 
 #[tokio::test]

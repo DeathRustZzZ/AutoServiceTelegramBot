@@ -15,6 +15,7 @@
 //! бота и репозитории работают уже с валидными типами и не дублируют проверки.
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{CarId, ClientId};
@@ -36,6 +37,58 @@ const MAX_LICENSE_PLATE_LEN: usize = 20;
 const VIN_LEN: usize = 17;
 /// Максимальная длина заметки в Unicode-символах.
 const MAX_CAR_NOTES_LEN: usize = 1000;
+/// Максимальная длина нейтральной ссылки на фото регистрационного документа.
+const MAX_CAR_DOCUMENT_PHOTO_REF_LEN: usize = 1024;
+
+/// Нейтральная ссылка на фото техпаспорта / СТС / регистрационного документа.
+///
+/// Домен намеренно не знает, откуда пришло фото. Это может быть Telegram
+/// `file_id`, ключ в локальном storage или внешний URL. Само изображение,
+/// bytes и base64 в домене не хранятся.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CarDocumentPhotoRef(String);
+
+impl CarDocumentPhotoRef {
+    /// Нормализует и проверяет ссылку на фото документа автомобиля.
+    pub fn new(value: impl Into<String>) -> Result<Self, CarDocumentPhotoRefError> {
+        let value = value.into();
+        let trimmed = value.trim();
+
+        if trimmed.is_empty() {
+            return Err(CarDocumentPhotoRefError::Empty);
+        }
+
+        let actual = trimmed.chars().count();
+
+        if actual > MAX_CAR_DOCUMENT_PHOTO_REF_LEN {
+            return Err(CarDocumentPhotoRefError::TooLong {
+                max: MAX_CAR_DOCUMENT_PHOTO_REF_LEN,
+            });
+        }
+
+        Ok(Self(trimmed.to_string()))
+    }
+
+    /// Возвращает сохраненную ссылку без копирования строки.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for CarDocumentPhotoRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Ошибка ссылки на фото регистрационного документа автомобиля.
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum CarDocumentPhotoRefError {
+    #[error("car document photo reference is empty")]
+    Empty,
+    #[error("car document photo reference is too long: max={max}")]
+    TooLong { max: usize },
+}
 
 /// Автомобиль, принадлежащий клиенту автосервиса.
 ///
@@ -62,6 +115,8 @@ pub struct Car {
     vin: Option<Vin>,
     /// Опциональная заметка по автомобилю.
     notes: Option<CarNotes>,
+    /// Опциональная ссылка на фото техпаспорта / СТС.
+    registration_document_photo: Option<CarDocumentPhotoRef>,
     /// Момент создания сущности.
     created_at: DateTime<Utc>,
     /// Момент последнего изменения сущности.
@@ -103,6 +158,7 @@ impl Car {
             license_plate,
             vin,
             notes,
+            registration_document_photo: None,
             created_at: now,
             updated_at: now,
         }
@@ -146,6 +202,45 @@ impl Car {
             license_plate,
             vin,
             notes,
+            registration_document_photo: None,
+            created_at,
+            updated_at,
+        })
+    }
+
+    /// Восстанавливает автомобиль с уже сохраненной ссылкой на фото документа.
+    ///
+    /// Основной `restore` оставлен без нового параметра, чтобы не усложнять
+    /// создание старых автомобилей и существующие сценарии. Инфраструктура,
+    /// которая читает новое nullable-поле из БД, может использовать этот метод.
+    #[allow(clippy::too_many_arguments)]
+    pub fn restore_with_registration_document_photo(
+        id: CarId,
+        client_id: ClientId,
+        make: CarMake,
+        model: CarModel,
+        year: Option<CarYear>,
+        license_plate: Option<LicensePlate>,
+        vin: Option<Vin>,
+        notes: Option<CarNotes>,
+        registration_document_photo: Option<CarDocumentPhotoRef>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, CarError> {
+        if updated_at < created_at {
+            return Err(CarError::UpdatedAtBeforeCreatedAt);
+        }
+
+        Ok(Self {
+            id,
+            client_id,
+            make,
+            model,
+            year,
+            license_plate,
+            vin,
+            notes,
+            registration_document_photo,
             created_at,
             updated_at,
         })
@@ -191,6 +286,11 @@ impl Car {
     /// Возвращает заметку по автомобилю, если она есть.
     pub fn notes(&self) -> Option<&CarNotes> {
         self.notes.as_ref()
+    }
+
+    /// Возвращает ссылку на фото регистрационного документа, если она есть.
+    pub fn registration_document_photo(&self) -> Option<&CarDocumentPhotoRef> {
+        self.registration_document_photo.as_ref()
     }
 
     /// Возвращает дату создания автомобиля.
@@ -286,6 +386,27 @@ impl Car {
     pub fn clear_notes(&mut self, now: DateTime<Utc>) -> Result<(), CarError> {
         self.touch(now)?;
         self.notes = None;
+        Ok(())
+    }
+
+    /// Сохраняет ссылку на фото регистрационного документа автомобиля.
+    pub fn set_registration_document_photo(
+        &mut self,
+        photo: CarDocumentPhotoRef,
+        now: DateTime<Utc>,
+    ) -> Result<(), CarError> {
+        self.touch(now)?;
+        self.registration_document_photo = Some(photo);
+        Ok(())
+    }
+
+    /// Удаляет ссылку на фото регистрационного документа автомобиля.
+    pub fn remove_registration_document_photo(
+        &mut self,
+        now: DateTime<Utc>,
+    ) -> Result<(), CarError> {
+        self.touch(now)?;
+        self.registration_document_photo = None;
         Ok(())
     }
 }
@@ -651,7 +772,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        Car, CarError, CarMake, CarModel, CarNotes, CarYear, LicensePlate, Vin, MAX_CAR_MAKE_LEN,
+        Car, CarDocumentPhotoRef, CarDocumentPhotoRefError, CarError, CarMake, CarModel, CarNotes,
+        CarYear, LicensePlate, Vin, MAX_CAR_DOCUMENT_PHOTO_REF_LEN, MAX_CAR_MAKE_LEN,
         MAX_CAR_MODEL_LEN, MAX_CAR_NOTES_LEN, MAX_CAR_YEAR, MAX_LICENSE_PLATE_LEN, MIN_CAR_YEAR,
         VIN_LEN,
     };
@@ -691,6 +813,10 @@ mod tests {
 
     fn car_notes(value: &str) -> CarNotes {
         CarNotes::parse(value).unwrap().unwrap()
+    }
+
+    fn document_photo(value: &str) -> CarDocumentPhotoRef {
+        CarDocumentPhotoRef::new(value).unwrap()
     }
 
     fn full_car(now: chrono::DateTime<Utc>) -> Car {
@@ -757,6 +883,35 @@ mod tests {
 
         assert_eq!(model.as_str(), "Camry XV70");
         assert_eq!(model.to_string(), "Camry XV70");
+    }
+
+    #[test]
+    fn car_document_photo_ref_rejects_empty_value() {
+        let error = CarDocumentPhotoRef::new("   ").unwrap_err();
+
+        assert_eq!(error, CarDocumentPhotoRefError::Empty);
+    }
+
+    #[test]
+    fn car_document_photo_ref_rejects_too_long_value() {
+        let input = "a".repeat(MAX_CAR_DOCUMENT_PHOTO_REF_LEN + 1);
+
+        let error = CarDocumentPhotoRef::new(input).unwrap_err();
+
+        assert_eq!(
+            error,
+            CarDocumentPhotoRefError::TooLong {
+                max: MAX_CAR_DOCUMENT_PHOTO_REF_LEN,
+            }
+        );
+    }
+
+    #[test]
+    fn car_document_photo_ref_trims_value() {
+        let photo = CarDocumentPhotoRef::new("  telegram-file-id  ").unwrap();
+
+        assert_eq!(photo.as_str(), "telegram-file-id");
+        assert_eq!(photo.to_string(), "telegram-file-id");
     }
 
     /// Пустая после trim модель отклоняется.
@@ -981,6 +1136,7 @@ mod tests {
         assert_eq!(car.license_plate().unwrap().as_str(), "1234AB7");
         assert_eq!(car.vin().unwrap().as_str(), "1HGCM82633A004352");
         assert_eq!(car.notes().unwrap().as_str(), "Первичный осмотр");
+        assert!(car.registration_document_photo().is_none());
         assert_eq!(*car.created_at(), now);
         assert_eq!(*car.updated_at(), now);
     }
@@ -1011,7 +1167,35 @@ mod tests {
         assert!(car.license_plate().is_none());
         assert!(car.vin().is_none());
         assert!(car.notes().is_none());
+        assert!(car.registration_document_photo().is_none());
         assert_eq!(*car.created_at(), created_at);
+        assert_eq!(*car.updated_at(), updated_at);
+    }
+
+    #[test]
+    fn car_restore_with_registration_document_photo_accepts_valid_state() {
+        let created_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_500);
+
+        let car = Car::restore_with_registration_document_photo(
+            car_id(),
+            client_id(),
+            car_make("BMW"),
+            car_model("X5"),
+            Some(car_year(2021)),
+            None,
+            None,
+            None,
+            Some(document_photo("telegram-file-id")),
+            created_at,
+            updated_at,
+        )
+        .unwrap();
+
+        assert_eq!(
+            car.registration_document_photo().unwrap().as_str(),
+            "telegram-file-id"
+        );
         assert_eq!(*car.updated_at(), updated_at);
     }
 
@@ -1165,6 +1349,38 @@ mod tests {
         car.clear_notes(third_update).unwrap();
         assert!(car.notes().is_none());
         assert_eq!(*car.updated_at(), third_update);
+    }
+
+    #[test]
+    fn car_can_set_registration_document_photo() {
+        let created_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_100);
+        let mut car = full_car(created_at);
+
+        car.set_registration_document_photo(document_photo("telegram-file-id"), updated_at)
+            .unwrap();
+
+        assert_eq!(
+            car.registration_document_photo().unwrap().as_str(),
+            "telegram-file-id"
+        );
+        assert_eq!(*car.updated_at(), updated_at);
+    }
+
+    #[test]
+    fn car_can_remove_registration_document_photo() {
+        let created_at = fixed_time(1_700_000_000);
+        let first_update = fixed_time(1_700_000_100);
+        let second_update = fixed_time(1_700_000_200);
+        let mut car = full_car(created_at);
+
+        car.set_registration_document_photo(document_photo("telegram-file-id"), first_update)
+            .unwrap();
+        car.remove_registration_document_photo(second_update)
+            .unwrap();
+
+        assert!(car.registration_document_photo().is_none());
+        assert_eq!(*car.updated_at(), second_update);
     }
 
     /// Некорректное время не должно менять заметку.

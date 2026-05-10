@@ -4,13 +4,19 @@ use std::sync::Arc;
 
 use crate::AppResult;
 
-/// Persistence port for clients.
+/// Порт хранения клиентов.
+///
+/// `Client` - самостоятельный агрегат. Для базовых сценариев достаточно
+/// загрузки по id и сохранения агрегата целиком.
 #[async_trait]
 pub trait ClientRepository: Send + Sync {
+    /// Возвращает клиента или `None`, если id не найден.
     async fn get(&self, id: ClientId) -> AppResult<Option<Client>>;
+    /// Сохраняет текущее состояние клиента.
     async fn save(&self, client: &Client) -> AppResult<()>;
 }
 
+/// Делегирующая реализация для shared repository object.
 #[async_trait]
 impl<T> ClientRepository for Arc<T>
 where

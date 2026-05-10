@@ -1,3 +1,9 @@
+//! Сценарии поставок запчастей.
+//!
+//! Поставка и складская позиция разделены намеренно: `PartSupply` описывает
+//! ожидаемое/полученное пополнение, а `Part` хранит текущий остаток. Сервис
+//! координирует оба агрегата, когда поставка фактически получена.
+
 use chrono::{DateTime, Utc};
 use garage_domain::{
     Part, PartId, PartQuantity, PartSupplier, PartSupply, PartSupplyId, PartSupplyNotes,
@@ -7,7 +13,7 @@ use crate::{AppResult, PartRepository, PartSupplyRepository};
 
 use super::common::{require_part, require_supply};
 
-/// Use cases for part supplies.
+/// Application service для поставок.
 pub struct PartSupplyService<Parts, Supplies> {
     parts: Parts,
     supplies: Supplies,
@@ -18,10 +24,14 @@ where
     Parts: PartRepository,
     Supplies: PartSupplyRepository,
 {
+    /// Создает сервис поставок.
     pub fn new(parts: Parts, supplies: Supplies) -> Self {
         Self { parts, supplies }
     }
 
+    /// Создает ожидаемую поставку для существующей складской позиции.
+    ///
+    /// Проверка нулевого количества остается в `PartSupply::new`.
     pub async fn create_supply(
         &self,
         part_id: PartId,
@@ -45,6 +55,15 @@ where
         Ok(supply)
     }
 
+    /// Отмечает поставку полученной и увеличивает остаток склада.
+    ///
+    /// Это multi-aggregate сценарий:
+    /// 1. Закрыть `PartSupply` как received.
+    /// 2. Увеличить `Part.quantity`.
+    /// 3. Сохранить оба агрегата.
+    ///
+    /// В PostgreSQL-реализации оба сохранения должны выполняться в одной
+    /// транзакции.
     pub async fn receive_supply(
         &self,
         supply_id: PartSupplyId,
@@ -61,6 +80,7 @@ where
         Ok((supply, part))
     }
 
+    /// Отменяет ожидаемую поставку без изменения складского остатка.
     pub async fn cancel_supply(
         &self,
         supply_id: PartSupplyId,

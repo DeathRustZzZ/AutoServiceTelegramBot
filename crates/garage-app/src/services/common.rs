@@ -1,3 +1,10 @@
+//! Общие guard-функции application layer.
+//!
+//! Эти функции не являются доменной логикой. Они превращают `Option<T>` из
+//! repository port в точные `AppError::*NotFound` и проверяют связи между
+//! агрегатами. Домен не может делать такие проверки сам, потому что у сущностей
+//! нет доступа к репозиториям.
+
 use garage_domain::{
     Booking, BookingId, Car, CarId, Client, ClientId, Part, PartId, PartSupply, PartSupplyId,
     Repair, RepairId,
@@ -8,6 +15,7 @@ use crate::{
     PartSupplyRepository, RepairRepository,
 };
 
+/// Загружает клиента или возвращает `ClientNotFound`.
 pub(crate) async fn require_client<R>(clients: &R, client_id: ClientId) -> AppResult<Client>
 where
     R: ClientRepository,
@@ -18,6 +26,7 @@ where
         .ok_or(AppError::ClientNotFound(client_id))
 }
 
+/// Загружает автомобиль или возвращает `CarNotFound`.
 pub(crate) async fn require_car<R>(cars: &R, car_id: CarId) -> AppResult<Car>
 where
     R: CarRepository,
@@ -25,6 +34,7 @@ where
     cars.get(car_id).await?.ok_or(AppError::CarNotFound(car_id))
 }
 
+/// Загружает запись или возвращает `BookingNotFound`.
 pub(crate) async fn require_booking<R>(bookings: &R, booking_id: BookingId) -> AppResult<Booking>
 where
     R: BookingRepository,
@@ -35,6 +45,7 @@ where
         .ok_or(AppError::BookingNotFound(booking_id))
 }
 
+/// Загружает складскую позицию или возвращает `PartNotFound`.
 pub(crate) async fn require_part<R>(parts: &R, part_id: PartId) -> AppResult<Part>
 where
     R: PartRepository,
@@ -45,6 +56,7 @@ where
         .ok_or(AppError::PartNotFound(part_id))
 }
 
+/// Загружает поставку или возвращает `PartSupplyNotFound`.
 pub(crate) async fn require_supply<R>(
     supplies: &R,
     supply_id: PartSupplyId,
@@ -58,6 +70,7 @@ where
         .ok_or(AppError::PartSupplyNotFound(supply_id))
 }
 
+/// Загружает ремонт или возвращает `RepairNotFound`.
 pub(crate) async fn require_repair<R>(repairs: &R, repair_id: RepairId) -> AppResult<Repair>
 where
     R: RepairRepository,
@@ -68,6 +81,10 @@ where
         .ok_or(AppError::RepairNotFound(repair_id))
 }
 
+/// Проверяет, что автомобиль принадлежит указанному клиенту.
+///
+/// Это защита от операций вида "изменить машину клиента A, передав car_id
+/// машины клиента B". Проверка должна выполняться до любой мутации `Car`.
 pub(crate) fn ensure_car_belongs_to_client(car: &Car, client_id: ClientId) -> AppResult<()> {
     if car.client_id() != client_id {
         return Err(AppError::CarDoesNotBelongToClient {
@@ -79,6 +96,11 @@ pub(crate) fn ensure_car_belongs_to_client(car: &Car, client_id: ClientId) -> Ap
     Ok(())
 }
 
+/// Проверяет, что booking относится к той же паре клиента и автомобиля.
+///
+/// Нужна при старте ремонта из записи и при сборке read model'ей. Без этой
+/// проверки поврежденные данные хранилища могли бы связать ремонт или карточку
+/// записи с чужим автомобилем.
 pub(crate) fn ensure_booking_belongs_to_client_and_car(
     booking: &Booking,
     client_id: ClientId,
