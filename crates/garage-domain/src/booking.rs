@@ -18,7 +18,9 @@
 //! `Completed`, `Cancelled` или `NoShow`. После финального статуса перенос и
 //! изменение причины запрещены, чтобы случайно не переписать историю приема.
 //! Заметки можно менять отдельно: это операционный комментарий администратора
-//! или мастера, а не бизнес-факт записи.
+//! или мастера, а не бизнес-факт записи. Поэтому момент закрытия хранится
+//! отдельно в `closed_at`, а `updated_at` остается временем последнего
+//! изменения сущности.
 
 use chrono::{DateTime, Utc};
 use thiserror::Error;
@@ -189,6 +191,12 @@ pub struct Booking {
     reason: BookingReason,
     /// Опциональная внутренняя заметка по записи.
     notes: Option<BookingNotes>,
+    /// Момент закрытия записи финальным статусом.
+    ///
+    /// Для `Scheduled` всегда `None`, для финального статуса всегда `Some`.
+    /// Это отдельное поле, потому что `updated_at` может измениться позже при
+    /// редактировании заметок.
+    closed_at: Option<DateTime<Utc>>,
     /// Момент создания записи.
     created_at: DateTime<Utc>,
     /// Момент последнего изменения записи.
@@ -226,6 +234,7 @@ impl Booking {
             status: BookingStatus::Scheduled,
             reason,
             notes,
+            closed_at: None,
             created_at: now,
             updated_at: now,
         }
@@ -234,16 +243,18 @@ impl Booking {
     /// Восстанавливает запись из уже существующего состояния.
     ///
     /// Этот метод нужен репозиторию при чтении из базы данных. В отличие от
-    /// `new`, статус и даты приходят извне, поэтому домен обязан проверить хотя
-    /// бы временной порядок.
+    /// `new`, статус и даты приходят извне, поэтому домен обязан проверить
+    /// временной порядок и согласованность статуса с `closed_at`.
     ///
     /// Алгоритм восстановления:
     /// 1. Репозиторий восстанавливает идентификаторы и value objects из
     ///    сохраненных значений.
     /// 2. `restore` сравнивает `updated_at` и `created_at`.
-    /// 3. Если обновление раньше создания, состояние считается поврежденным и
-    ///    возвращается `UpdatedAtBeforeCreatedAt`.
-    /// 4. Иначе сущность собирается без изменения переданных дат и статуса.
+    /// 3. Для активной записи требует `closed_at = None`.
+    /// 4. Для финальной записи требует `closed_at = Some(...)`.
+    /// 5. Если `closed_at` есть, проверяет, что закрытие не раньше создания, а
+    ///    последнее обновление не раньше закрытия.
+    /// 6. Иначе сущность собирается без изменения переданных дат и статуса.
     #[allow(clippy::too_many_arguments)]
     pub fn restore(
         id: BookingId,
@@ -253,11 +264,31 @@ impl Booking {
         status: BookingStatus,
         reason: BookingReason,
         notes: Option<BookingNotes>,
+        closed_at: Option<DateTime<Utc>>,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, BookingError> {
         if updated_at < created_at {
             return Err(BookingError::UpdatedAtBeforeCreatedAt);
+        }
+
+        match (status, closed_at) {
+            (BookingStatus::Scheduled, Some(_)) => {
+                return Err(BookingError::ScheduledBookingWithClosedAt);
+            }
+            (BookingStatus::Scheduled, None) => {}
+            (_, None) => {
+                return Err(BookingError::FinalBookingWithoutClosedAt { status });
+            }
+            (_, Some(closed_at)) => {
+                if closed_at < created_at {
+                    return Err(BookingError::ClosedAtBeforeCreatedAt);
+                }
+
+                if updated_at < closed_at {
+                    return Err(BookingError::UpdatedAtBeforeClosedAt);
+                }
+            }
         }
 
         Ok(Self {
@@ -268,6 +299,7 @@ impl Booking {
             status,
             reason,
             notes,
+            closed_at,
             created_at,
             updated_at,
         })
@@ -309,6 +341,11 @@ impl Booking {
     /// позволять вызывающему коду менять внутреннее состояние напрямую.
     pub fn notes(&self) -> Option<&BookingNotes> {
         self.notes.as_ref()
+    }
+
+    /// Возвращает момент закрытия записи, если она уже закрыта.
+    pub fn closed_at(&self) -> Option<&DateTime<Utc>> {
+        self.closed_at.as_ref()
     }
 
     /// Возвращает дату создания записи.
@@ -466,6 +503,7 @@ impl Booking {
     /// 1. Проверяем, что текущий статус допускает переход в `status`.
     /// 2. Обновляем `updated_at` через `touch`.
     /// 3. Записываем новый статус.
+    /// 4. Записываем `closed_at = Some(now)`.
     ///
     /// Все публичные методы (`complete`, `cancel`, `mark_no_show`) используют
     /// один путь, чтобы правила переходов не расходились между сценариями.
@@ -477,6 +515,7 @@ impl Booking {
         self.ensure_scheduled_for_transition(status)?;
         self.touch(now)?;
         self.status = status;
+        self.closed_at = Some(now);
         Ok(())
     }
 }
@@ -503,6 +542,22 @@ pub enum BookingError {
     /// Восстановленное или обновленное состояние нарушает временной порядок.
     #[error("booking updated_at cannot be earlier than created_at")]
     UpdatedAtBeforeCreatedAt,
+
+    /// Активная запись восстановлена с временем закрытия.
+    #[error("scheduled booking cannot have closed_at")]
+    ScheduledBookingWithClosedAt,
+
+    /// Финальная запись восстановлена без времени закрытия.
+    #[error("final booking with status {status} must have closed_at")]
+    FinalBookingWithoutClosedAt { status: BookingStatus },
+
+    /// Время закрытия оказалось раньше времени создания.
+    #[error("booking closed_at cannot be earlier than created_at")]
+    ClosedAtBeforeCreatedAt,
+
+    /// Время последнего изменения оказалось раньше времени закрытия.
+    #[error("booking updated_at cannot be earlier than closed_at")]
+    UpdatedAtBeforeClosedAt,
 
     /// Попытка изменить бизнес-поля записи после финального статуса.
     #[error("cannot modify booking with final status {status}")]
@@ -676,10 +731,18 @@ mod tests {
         assert_eq!(booking.status(), BookingStatus::Scheduled);
         assert_eq!(booking.reason().as_str(), "Замена масла");
         assert_eq!(booking.notes().unwrap().as_str(), "С фильтром клиента");
+        assert!(booking.closed_at().is_none());
         assert_eq!(*booking.created_at(), now);
         assert_eq!(*booking.updated_at(), now);
         assert!(booking.is_scheduled());
         assert!(!booking.is_terminal());
+    }
+
+    #[test]
+    fn booking_new_sets_closed_at_none() {
+        let booking = scheduled_booking(fixed_time(1_700_000_000));
+
+        assert!(booking.closed_at().is_none());
     }
 
     /// Restore принимает сохраненное состояние, если порядок дат корректен.
@@ -697,6 +760,7 @@ mod tests {
             BookingStatus::Cancelled,
             reason("Диагностика"),
             None,
+            Some(updated_at),
             created_at,
             updated_at,
         )
@@ -704,11 +768,107 @@ mod tests {
 
         assert_eq!(booking.status(), BookingStatus::Cancelled);
         assert_eq!(*booking.scheduled_at(), scheduled_at);
+        assert_eq!(*booking.closed_at().unwrap(), updated_at);
         assert_eq!(*booking.created_at(), created_at);
         assert_eq!(*booking.updated_at(), updated_at);
         assert!(booking.notes().is_none());
         assert!(!booking.is_scheduled());
         assert!(booking.is_terminal());
+    }
+
+    #[test]
+    fn restore_rejects_scheduled_booking_with_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_500);
+
+        let error = Booking::restore(
+            booking_id(),
+            client_id(),
+            car_id(),
+            fixed_time(1_700_010_000),
+            BookingStatus::Scheduled,
+            reason("Диагностика"),
+            None,
+            Some(updated_at),
+            created_at,
+            updated_at,
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BookingError::ScheduledBookingWithClosedAt);
+    }
+
+    #[test]
+    fn restore_rejects_final_booking_without_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_500);
+
+        let error = Booking::restore(
+            booking_id(),
+            client_id(),
+            car_id(),
+            fixed_time(1_700_010_000),
+            BookingStatus::Completed,
+            reason("Диагностика"),
+            None,
+            None,
+            created_at,
+            updated_at,
+        )
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            BookingError::FinalBookingWithoutClosedAt {
+                status: BookingStatus::Completed,
+            }
+        );
+    }
+
+    #[test]
+    fn restore_rejects_closed_at_before_created_at() {
+        let created_at = fixed_time(1_700_000_100);
+        let closed_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_200);
+
+        let error = Booking::restore(
+            booking_id(),
+            client_id(),
+            car_id(),
+            fixed_time(1_700_010_000),
+            BookingStatus::Cancelled,
+            reason("Диагностика"),
+            None,
+            Some(closed_at),
+            created_at,
+            updated_at,
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BookingError::ClosedAtBeforeCreatedAt);
+    }
+
+    #[test]
+    fn restore_rejects_updated_at_before_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let updated_at = fixed_time(1_700_000_100);
+        let closed_at = fixed_time(1_700_000_200);
+
+        let error = Booking::restore(
+            booking_id(),
+            client_id(),
+            car_id(),
+            fixed_time(1_700_010_000),
+            BookingStatus::NoShow,
+            reason("Диагностика"),
+            None,
+            Some(closed_at),
+            created_at,
+            updated_at,
+        )
+        .unwrap_err();
+
+        assert_eq!(error, BookingError::UpdatedAtBeforeClosedAt);
     }
 
     /// Данные из БД с `updated_at` раньше `created_at` не должны попадать в
@@ -722,6 +882,7 @@ mod tests {
             fixed_time(1_700_010_000),
             BookingStatus::Scheduled,
             reason("Диагностика"),
+            None,
             None,
             fixed_time(1_700_000_500),
             fixed_time(1_700_000_000),
@@ -850,6 +1011,24 @@ mod tests {
 
         assert_eq!(booking.status(), BookingStatus::Completed);
         assert_eq!(booking.notes().unwrap().as_str(), "Работы закрыты по акту");
+        assert_eq!(*booking.closed_at().unwrap(), completed_at);
+        assert_eq!(*booking.updated_at(), notes_updated_at);
+    }
+
+    #[test]
+    fn update_notes_after_final_status_preserves_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let closed_at = fixed_time(1_700_000_100);
+        let notes_updated_at = fixed_time(1_700_000_200);
+        let mut booking = scheduled_booking(created_at);
+        booking.cancel(closed_at).unwrap();
+
+        booking
+            .update_notes(Some(notes("Отмена по просьбе клиента")), notes_updated_at)
+            .unwrap();
+
+        assert_eq!(booking.status(), BookingStatus::Cancelled);
+        assert_eq!(*booking.closed_at().unwrap(), closed_at);
         assert_eq!(*booking.updated_at(), notes_updated_at);
     }
 
@@ -866,6 +1045,20 @@ mod tests {
         assert_eq!(booking.status(), BookingStatus::Completed);
         assert!(!booking.is_scheduled());
         assert!(booking.is_terminal());
+        assert_eq!(*booking.closed_at().unwrap(), completed_at);
+        assert_eq!(*booking.updated_at(), completed_at);
+    }
+
+    #[test]
+    fn complete_sets_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let completed_at = fixed_time(1_700_000_100);
+        let mut booking = scheduled_booking(created_at);
+
+        booking.complete(completed_at).unwrap();
+
+        assert_eq!(booking.status(), BookingStatus::Completed);
+        assert_eq!(*booking.closed_at().unwrap(), completed_at);
         assert_eq!(*booking.updated_at(), completed_at);
     }
 
@@ -880,7 +1073,20 @@ mod tests {
 
         assert_eq!(booking.status(), BookingStatus::Cancelled);
         assert!(booking.is_terminal());
+        assert_eq!(*booking.closed_at().unwrap(), cancelled_at);
         assert_eq!(*booking.updated_at(), cancelled_at);
+    }
+
+    #[test]
+    fn cancel_sets_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let cancelled_at = fixed_time(1_700_000_100);
+        let mut booking = scheduled_booking(created_at);
+
+        booking.cancel(cancelled_at).unwrap();
+
+        assert_eq!(booking.status(), BookingStatus::Cancelled);
+        assert_eq!(*booking.closed_at().unwrap(), cancelled_at);
     }
 
     /// Неявка клиента закрывает активную запись отдельным финальным статусом.
@@ -894,7 +1100,20 @@ mod tests {
 
         assert_eq!(booking.status(), BookingStatus::NoShow);
         assert!(booking.is_terminal());
+        assert_eq!(*booking.closed_at().unwrap(), no_show_at);
         assert_eq!(*booking.updated_at(), no_show_at);
+    }
+
+    #[test]
+    fn mark_no_show_sets_closed_at() {
+        let created_at = fixed_time(1_700_000_000);
+        let no_show_at = fixed_time(1_700_000_100);
+        let mut booking = scheduled_booking(created_at);
+
+        booking.mark_no_show(no_show_at).unwrap();
+
+        assert_eq!(booking.status(), BookingStatus::NoShow);
+        assert_eq!(*booking.closed_at().unwrap(), no_show_at);
     }
 
     /// Финальный переход с некорректным временем должен завершиться ошибкой без
