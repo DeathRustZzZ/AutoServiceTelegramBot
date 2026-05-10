@@ -1,6 +1,6 @@
 # garage-domain — Developer Guide
 
-> Автор: анализ кодовой базы senior Rust-разработчиком  
+> Автор: DeathCrushZzZ
 > Крейт: `crates/garage-domain`  
 > Версия: workspace 0.1.0
 
