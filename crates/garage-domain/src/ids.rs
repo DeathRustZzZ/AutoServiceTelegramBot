@@ -257,3 +257,34 @@ impl Default for PaymentId {
         Self::new()
     }
 }
+
+/// Идентификатор исторического движения складского остатка.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StockMovementId(Uuid);
+
+impl StockMovementId {
+    /// Создает новый идентификатор движения склада.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Восстанавливает идентификатор движения из UUID внешнего слоя.
+    ///
+    /// Метод не проверяет, существует ли связанная складская позиция и было ли
+    /// движение уже отражено в текущем остатке `Part`. Эти проверки принадлежат
+    /// application-layer сценарию.
+    pub fn from_uuid(value: Uuid) -> Self {
+        Self(value)
+    }
+
+    /// Возвращает сырой UUID для инфраструктуры и интеграций.
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for StockMovementId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
