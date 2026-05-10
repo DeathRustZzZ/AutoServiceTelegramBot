@@ -28,6 +28,28 @@ const MAX_PART_SKU_LEN: usize = 100;
 /// Максимальная длина заметки по запчасти в Unicode-символах.
 const MAX_PART_NOTES_LEN: usize = 1000;
 
+/// Статус складской позиции.
+///
+/// Архивная позиция не удаляется физически: история ремонтов, поставок и
+/// движений склада должна оставаться связанной с исходной `Part`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PartStatus {
+    /// Позиция актуальна для рабочих складских сценариев.
+    Active,
+    /// Позиция сохранена для истории, но больше не используется активно.
+    Archived,
+}
+
+/// Стабильное строковое представление статуса складской позиции.
+impl std::fmt::Display for PartStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PartStatus::Active => write!(f, "active"),
+            PartStatus::Archived => write!(f, "archived"),
+        }
+    }
+}
+
 /// Проверенное название запчасти.
 ///
 /// Название обязательно: пустая строка не несет бизнес-смысла и быстро приводит
@@ -275,6 +297,8 @@ pub struct Part {
     unit_price: Money,
     /// Опциональная заметка.
     notes: Option<PartNotes>,
+    /// Статус актуальности складской позиции.
+    status: PartStatus,
     /// Момент создания позиции.
     created_at: DateTime<Utc>,
     /// Момент последнего изменения позиции.
@@ -307,6 +331,7 @@ impl Part {
             min_quantity,
             unit_price,
             notes,
+            status: PartStatus::Active,
             created_at: now,
             updated_at: now,
         }
@@ -330,6 +355,7 @@ impl Part {
         min_quantity: PartQuantity,
         unit_price: Money,
         notes: Option<PartNotes>,
+        status: PartStatus,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, PartError> {
@@ -345,6 +371,7 @@ impl Part {
             min_quantity,
             unit_price,
             notes,
+            status,
             created_at,
             updated_at,
         })
@@ -389,6 +416,21 @@ impl Part {
     /// Возвращает заметку, если она есть.
     pub fn notes(&self) -> Option<&PartNotes> {
         self.notes.as_ref()
+    }
+
+    /// Возвращает статус актуальности складской позиции.
+    pub fn status(&self) -> PartStatus {
+        self.status
+    }
+
+    /// Проверяет, активна ли позиция.
+    pub fn is_active(&self) -> bool {
+        self.status == PartStatus::Active
+    }
+
+    /// Проверяет, находится ли позиция в архиве.
+    pub fn is_archived(&self) -> bool {
+        self.status == PartStatus::Archived
     }
 
     /// Возвращает дату создания позиции.
@@ -549,6 +591,26 @@ impl Part {
         Ok(())
     }
 
+    /// Архивирует складскую позицию и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторное архивирование оставляет статус
+    /// `Archived`, но обновляет `updated_at`, если `now` валиден.
+    pub fn archive(&mut self, now: DateTime<Utc>) -> Result<(), PartError> {
+        self.touch(now)?;
+        self.status = PartStatus::Archived;
+        Ok(())
+    }
+
+    /// Возвращает складскую позицию из архива и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторное восстановление активной позиции
+    /// оставляет статус `Active`, но обновляет `updated_at`, если `now` валиден.
+    pub fn restore_from_archive(&mut self, now: DateTime<Utc>) -> Result<(), PartError> {
+        self.touch(now)?;
+        self.status = PartStatus::Active;
+        Ok(())
+    }
+
     /// Обновляет `updated_at`, сохраняя временной инвариант сущности.
     ///
     /// Метод приватный, потому что сам по себе `touch` не является бизнес-
@@ -603,7 +665,7 @@ pub enum PartError {
 #[cfg(test)]
 mod tests {
     use super::{
-        Part, PartError, PartName, PartNotes, PartQuantity, PartSku, MAX_PART_NAME_LEN,
+        Part, PartError, PartName, PartNotes, PartQuantity, PartSku, PartStatus, MAX_PART_NAME_LEN,
         MAX_PART_NOTES_LEN, MAX_PART_SKU_LEN,
     };
     use crate::{Currency, Money, PartId};
@@ -827,8 +889,20 @@ mod tests {
         assert_eq!(part.min_quantity(), PartQuantity::new(3));
         assert_eq!(part.unit_price(), money(2500));
         assert_eq!(part.notes().unwrap().as_str(), "Original supplier");
+        assert_eq!(part.status(), PartStatus::Active);
+        assert!(part.is_active());
+        assert!(!part.is_archived());
         assert_eq!(*part.created_at(), now);
         assert_eq!(*part.updated_at(), now);
+    }
+
+    #[test]
+    fn part_new_sets_status_active() {
+        let part = part_fixture();
+
+        assert_eq!(part.status(), PartStatus::Active);
+        assert!(part.is_active());
+        assert!(!part.is_archived());
     }
 
     #[test]
@@ -843,6 +917,7 @@ mod tests {
             PartQuantity::new(1),
             money(1800),
             None,
+            PartStatus::Archived,
             created_at,
             updated_at,
         )
@@ -852,8 +927,30 @@ mod tests {
         assert_eq!(part.sku(), None);
         assert_eq!(part.quantity(), PartQuantity::new(4));
         assert_eq!(part.notes(), None);
+        assert_eq!(part.status(), PartStatus::Archived);
+        assert!(part.is_archived());
         assert_eq!(*part.created_at(), created_at);
         assert_eq!(*part.updated_at(), updated_at);
+    }
+
+    #[test]
+    fn part_restore_preserves_status() {
+        let part = Part::restore(
+            part_id(),
+            PartName::parse("Air filter").unwrap(),
+            None,
+            PartQuantity::new(4),
+            PartQuantity::new(1),
+            money(1800),
+            None,
+            PartStatus::Archived,
+            fixed_time(),
+            later_time(),
+        )
+        .unwrap();
+
+        assert_eq!(part.status(), PartStatus::Archived);
+        assert!(part.is_archived());
     }
 
     #[test]
@@ -866,6 +963,7 @@ mod tests {
             PartQuantity::new(1),
             money(1800),
             None,
+            PartStatus::Active,
             fixed_time(),
             earlier_time(),
         )
@@ -1101,5 +1199,49 @@ mod tests {
 
         assert_eq!(error, PartError::UpdatedAtBeforeCreatedAt);
         assert_eq!(part, before);
+    }
+
+    #[test]
+    fn part_archive_sets_status_archived_and_updates_timestamp() {
+        let mut part = part_fixture();
+
+        part.archive(later_time()).unwrap();
+
+        assert_eq!(part.status(), PartStatus::Archived);
+        assert!(part.is_archived());
+        assert_eq!(part.name().as_str(), "Oil filter");
+        assert_eq!(part.quantity(), PartQuantity::new(10));
+        assert_eq!(part.unit_price(), money(2500));
+        assert_eq!(*part.updated_at(), later_time());
+    }
+
+    #[test]
+    fn part_restore_from_archive_sets_status_active_and_updates_timestamp() {
+        let restored_at = later_time() + Duration::minutes(1);
+        let mut part = part_fixture();
+
+        part.archive(later_time()).unwrap();
+        part.restore_from_archive(restored_at).unwrap();
+
+        assert_eq!(part.status(), PartStatus::Active);
+        assert!(part.is_active());
+        assert_eq!(*part.updated_at(), restored_at);
+    }
+
+    #[test]
+    fn part_archive_rejects_timestamp_before_created_at_without_changing_status() {
+        let mut part = part_fixture();
+
+        let error = part.archive(earlier_time()).unwrap_err();
+
+        assert_eq!(error, PartError::UpdatedAtBeforeCreatedAt);
+        assert_eq!(part.status(), PartStatus::Active);
+        assert_eq!(*part.updated_at(), fixed_time());
+    }
+
+    #[test]
+    fn part_status_display_returns_stable_codes() {
+        assert_eq!(PartStatus::Active.to_string(), "active");
+        assert_eq!(PartStatus::Archived.to_string(), "archived");
     }
 }

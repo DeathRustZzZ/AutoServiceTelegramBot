@@ -40,6 +40,28 @@ const MAX_CAR_NOTES_LEN: usize = 1000;
 /// Максимальная длина нейтральной ссылки на фото регистрационного документа.
 const MAX_CAR_DOCUMENT_PHOTO_REF_LEN: usize = 1024;
 
+/// Статус автомобиля в справочнике клиента.
+///
+/// Архивирование сохраняет автомобиль и всю историю ремонтов, но помечает его
+/// как неактуальный для обычных рабочих сценариев.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CarStatus {
+    /// Автомобиль актуален.
+    Active,
+    /// Автомобиль сохранен для истории, но больше не используется активно.
+    Archived,
+}
+
+/// Стабильное строковое представление статуса автомобиля.
+impl std::fmt::Display for CarStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CarStatus::Active => write!(f, "active"),
+            CarStatus::Archived => write!(f, "archived"),
+        }
+    }
+}
+
 /// Нейтральная ссылка на фото техпаспорта / СТС / регистрационного документа.
 ///
 /// Домен намеренно не знает, откуда пришло фото. Это может быть Telegram
@@ -117,6 +139,8 @@ pub struct Car {
     notes: Option<CarNotes>,
     /// Опциональная ссылка на фото техпаспорта / СТС.
     registration_document_photo: Option<CarDocumentPhotoRef>,
+    /// Статус актуальности автомобиля.
+    status: CarStatus,
     /// Момент создания сущности.
     created_at: DateTime<Utc>,
     /// Момент последнего изменения сущности.
@@ -159,6 +183,7 @@ impl Car {
             vin,
             notes,
             registration_document_photo: None,
+            status: CarStatus::Active,
             created_at: now,
             updated_at: now,
         }
@@ -186,6 +211,7 @@ impl Car {
         license_plate: Option<LicensePlate>,
         vin: Option<Vin>,
         notes: Option<CarNotes>,
+        status: CarStatus,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, CarError> {
@@ -203,6 +229,7 @@ impl Car {
             vin,
             notes,
             registration_document_photo: None,
+            status,
             created_at,
             updated_at,
         })
@@ -224,6 +251,7 @@ impl Car {
         vin: Option<Vin>,
         notes: Option<CarNotes>,
         registration_document_photo: Option<CarDocumentPhotoRef>,
+        status: CarStatus,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, CarError> {
@@ -241,6 +269,7 @@ impl Car {
             vin,
             notes,
             registration_document_photo,
+            status,
             created_at,
             updated_at,
         })
@@ -291,6 +320,21 @@ impl Car {
     /// Возвращает ссылку на фото регистрационного документа, если она есть.
     pub fn registration_document_photo(&self) -> Option<&CarDocumentPhotoRef> {
         self.registration_document_photo.as_ref()
+    }
+
+    /// Возвращает статус актуальности автомобиля.
+    pub fn status(&self) -> CarStatus {
+        self.status
+    }
+
+    /// Проверяет, активен ли автомобиль.
+    pub fn is_active(&self) -> bool {
+        self.status == CarStatus::Active
+    }
+
+    /// Проверяет, находится ли автомобиль в архиве.
+    pub fn is_archived(&self) -> bool {
+        self.status == CarStatus::Archived
     }
 
     /// Возвращает дату создания автомобиля.
@@ -407,6 +451,26 @@ impl Car {
     ) -> Result<(), CarError> {
         self.touch(now)?;
         self.registration_document_photo = None;
+        Ok(())
+    }
+
+    /// Архивирует автомобиль и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторное архивирование оставляет статус
+    /// `Archived`, но обновляет `updated_at`, если `now` валиден.
+    pub fn archive(&mut self, now: DateTime<Utc>) -> Result<(), CarError> {
+        self.touch(now)?;
+        self.status = CarStatus::Archived;
+        Ok(())
+    }
+
+    /// Возвращает автомобиль из архива и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторное восстановление активного автомобиля
+    /// оставляет статус `Active`, но обновляет `updated_at`, если `now` валиден.
+    pub fn restore_from_archive(&mut self, now: DateTime<Utc>) -> Result<(), CarError> {
+        self.touch(now)?;
+        self.status = CarStatus::Active;
         Ok(())
     }
 }
@@ -773,7 +837,7 @@ mod tests {
 
     use super::{
         Car, CarDocumentPhotoRef, CarDocumentPhotoRefError, CarError, CarMake, CarModel, CarNotes,
-        CarYear, LicensePlate, Vin, MAX_CAR_DOCUMENT_PHOTO_REF_LEN, MAX_CAR_MAKE_LEN,
+        CarStatus, CarYear, LicensePlate, Vin, MAX_CAR_DOCUMENT_PHOTO_REF_LEN, MAX_CAR_MAKE_LEN,
         MAX_CAR_MODEL_LEN, MAX_CAR_NOTES_LEN, MAX_CAR_YEAR, MAX_LICENSE_PLATE_LEN, MIN_CAR_YEAR,
         VIN_LEN,
     };
@@ -1137,8 +1201,20 @@ mod tests {
         assert_eq!(car.vin().unwrap().as_str(), "1HGCM82633A004352");
         assert_eq!(car.notes().unwrap().as_str(), "Первичный осмотр");
         assert!(car.registration_document_photo().is_none());
+        assert_eq!(car.status(), CarStatus::Active);
+        assert!(car.is_active());
+        assert!(!car.is_archived());
         assert_eq!(*car.created_at(), now);
         assert_eq!(*car.updated_at(), now);
+    }
+
+    #[test]
+    fn car_new_sets_status_active() {
+        let car = full_car(fixed_time(1_700_000_000));
+
+        assert_eq!(car.status(), CarStatus::Active);
+        assert!(car.is_active());
+        assert!(!car.is_archived());
     }
 
     /// Restore сохраняет переданные даты, если временной порядок корректен.
@@ -1156,6 +1232,7 @@ mod tests {
             None,
             None,
             None,
+            CarStatus::Archived,
             created_at,
             updated_at,
         )
@@ -1168,8 +1245,31 @@ mod tests {
         assert!(car.vin().is_none());
         assert!(car.notes().is_none());
         assert!(car.registration_document_photo().is_none());
+        assert_eq!(car.status(), CarStatus::Archived);
+        assert!(car.is_archived());
         assert_eq!(*car.created_at(), created_at);
         assert_eq!(*car.updated_at(), updated_at);
+    }
+
+    #[test]
+    fn car_restore_preserves_status() {
+        let car = Car::restore(
+            car_id(),
+            client_id(),
+            car_make("BMW"),
+            car_model("X5"),
+            None,
+            None,
+            None,
+            None,
+            CarStatus::Archived,
+            fixed_time(1_700_000_000),
+            fixed_time(1_700_000_100),
+        )
+        .unwrap();
+
+        assert_eq!(car.status(), CarStatus::Archived);
+        assert!(car.is_archived());
     }
 
     #[test]
@@ -1187,6 +1287,7 @@ mod tests {
             None,
             None,
             Some(document_photo("telegram-file-id")),
+            CarStatus::Archived,
             created_at,
             updated_at,
         )
@@ -1196,7 +1297,30 @@ mod tests {
             car.registration_document_photo().unwrap().as_str(),
             "telegram-file-id"
         );
+        assert_eq!(car.status(), CarStatus::Archived);
         assert_eq!(*car.updated_at(), updated_at);
+    }
+
+    #[test]
+    fn car_restore_with_registration_document_photo_preserves_status() {
+        let car = Car::restore_with_registration_document_photo(
+            car_id(),
+            client_id(),
+            car_make("BMW"),
+            car_model("X5"),
+            None,
+            None,
+            None,
+            None,
+            Some(document_photo("telegram-file-id")),
+            CarStatus::Archived,
+            fixed_time(1_700_000_000),
+            fixed_time(1_700_000_100),
+        )
+        .unwrap();
+
+        assert_eq!(car.status(), CarStatus::Archived);
+        assert!(car.is_archived());
     }
 
     /// Restore отклоняет поврежденное состояние, где обновление раньше создания.
@@ -1214,6 +1338,7 @@ mod tests {
             None,
             None,
             None,
+            CarStatus::Active,
             created_at,
             updated_at,
         )
@@ -1381,6 +1506,55 @@ mod tests {
 
         assert!(car.registration_document_photo().is_none());
         assert_eq!(*car.updated_at(), second_update);
+    }
+
+    #[test]
+    fn car_archive_sets_status_archived_and_updates_timestamp() {
+        let created_at = fixed_time(1_700_000_000);
+        let archived_at = fixed_time(1_700_000_100);
+        let mut car = full_car(created_at);
+
+        car.archive(archived_at).unwrap();
+
+        assert_eq!(car.status(), CarStatus::Archived);
+        assert!(car.is_archived());
+        assert_eq!(car.make().as_str(), "Toyota");
+        assert_eq!(car.model().as_str(), "Camry");
+        assert_eq!(car.vin().unwrap().as_str(), "1HGCM82633A004352");
+        assert_eq!(*car.updated_at(), archived_at);
+    }
+
+    #[test]
+    fn car_restore_from_archive_sets_status_active_and_updates_timestamp() {
+        let created_at = fixed_time(1_700_000_000);
+        let archived_at = fixed_time(1_700_000_100);
+        let restored_at = fixed_time(1_700_000_200);
+        let mut car = full_car(created_at);
+
+        car.archive(archived_at).unwrap();
+        car.restore_from_archive(restored_at).unwrap();
+
+        assert_eq!(car.status(), CarStatus::Active);
+        assert!(car.is_active());
+        assert_eq!(*car.updated_at(), restored_at);
+    }
+
+    #[test]
+    fn car_archive_rejects_timestamp_before_created_at_without_changing_status() {
+        let created_at = fixed_time(1_700_000_000);
+        let mut car = full_car(created_at);
+
+        let error = car.archive(fixed_time(1_699_999_999)).unwrap_err();
+
+        assert_eq!(error, CarError::UpdatedAtBeforeCreatedAt);
+        assert_eq!(car.status(), CarStatus::Active);
+        assert_eq!(*car.updated_at(), created_at);
+    }
+
+    #[test]
+    fn car_status_display_returns_stable_codes() {
+        assert_eq!(CarStatus::Active.to_string(), "active");
+        assert_eq!(CarStatus::Archived.to_string(), "archived");
     }
 
     /// Некорректное время не должно менять заметку.

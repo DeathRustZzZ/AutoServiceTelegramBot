@@ -30,6 +30,28 @@ const MAX_CLIENT_NAME_LEN: usize = 100;
 /// Максимальная длина заметки в Unicode-символах.
 const MAX_CLIENT_NOTES_LEN: usize = 1000;
 
+/// Статус клиента в справочнике автосервиса.
+///
+/// Архивирование не удаляет клиента физически и не стирает историю ремонтов.
+/// Это только доменный признак актуальности записи для рабочих сценариев.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ClientStatus {
+    /// Клиент актуален и используется в рабочих сценариях.
+    Active,
+    /// Клиент сохранен для истории, но больше не считается актуальным.
+    Archived,
+}
+
+/// Стабильное строковое представление статуса клиента.
+impl std::fmt::Display for ClientStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientStatus::Active => write!(f, "active"),
+            ClientStatus::Archived => write!(f, "archived"),
+        }
+    }
+}
+
 /// Имя клиента.
 ///
 /// Это не обязательно паспортное ФИО. В реальном автосервисе клиент может быть
@@ -159,6 +181,8 @@ pub struct Client {
     /// Опциональная заметка. Пустая строка здесь не хранится: она представлена
     /// как `None`.
     notes: Option<ClientNotes>,
+    /// Статус актуальности клиента.
+    status: ClientStatus,
     /// Момент создания сущности.
     created_at: DateTime<Utc>,
     /// Момент последнего изменения данных клиента.
@@ -191,6 +215,7 @@ impl Client {
             name,
             phone,
             notes,
+            status: ClientStatus::Active,
             created_at: now,
             updated_at: now,
         }
@@ -211,6 +236,7 @@ impl Client {
         name: ClientName,
         phone: PhoneNumber,
         notes: Option<ClientNotes>,
+        status: ClientStatus,
         created_at: DateTime<Utc>,
         updated_at: DateTime<Utc>,
     ) -> Result<Self, ClientError> {
@@ -223,6 +249,7 @@ impl Client {
             name,
             phone,
             notes,
+            status,
             created_at,
             updated_at,
         })
@@ -252,6 +279,21 @@ impl Client {
     /// позволять вызывающему коду менять внутреннее состояние напрямую.
     pub fn notes(&self) -> Option<&ClientNotes> {
         self.notes.as_ref()
+    }
+
+    /// Возвращает статус актуальности клиента.
+    pub fn status(&self) -> ClientStatus {
+        self.status
+    }
+
+    /// Проверяет, активен ли клиент.
+    pub fn is_active(&self) -> bool {
+        self.status == ClientStatus::Active
+    }
+
+    /// Проверяет, находится ли клиент в архиве.
+    pub fn is_archived(&self) -> bool {
+        self.status == ClientStatus::Archived
     }
 
     /// Возвращает дату создания клиента.
@@ -333,6 +375,27 @@ impl Client {
         self.notes = None;
         Ok(())
     }
+
+    /// Архивирует клиента и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторный вызов для уже архивного клиента
+    /// оставляет статус `Archived`, но обновляет `updated_at`, если `now`
+    /// проходит временной инвариант.
+    pub fn archive(&mut self, now: DateTime<Utc>) -> Result<(), ClientError> {
+        self.touch(now)?;
+        self.status = ClientStatus::Archived;
+        Ok(())
+    }
+
+    /// Возвращает клиента из архива и фиксирует момент изменения.
+    ///
+    /// Операция идемпотентна: повторный вызов для активного клиента оставляет
+    /// статус `Active`, но обновляет `updated_at`, если `now` валиден.
+    pub fn restore_from_archive(&mut self, now: DateTime<Utc>) -> Result<(), ClientError> {
+        self.touch(now)?;
+        self.status = ClientStatus::Active;
+        Ok(())
+    }
 }
 
 /// Ошибка работы с клиентом.
@@ -364,7 +427,8 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        Client, ClientError, ClientName, ClientNotes, MAX_CLIENT_NAME_LEN, MAX_CLIENT_NOTES_LEN,
+        Client, ClientError, ClientName, ClientNotes, ClientStatus, MAX_CLIENT_NAME_LEN,
+        MAX_CLIENT_NOTES_LEN,
     };
     use crate::{ClientId, PhoneNumber};
 
@@ -496,8 +560,26 @@ mod tests {
         assert_eq!(client.name().as_str(), "Иван");
         assert_eq!(client.phone().as_str(), "+375291234567");
         assert_eq!(client.notes().unwrap().as_str(), "Постоянный клиент");
+        assert_eq!(client.status(), ClientStatus::Active);
+        assert!(client.is_active());
+        assert!(!client.is_archived());
         assert_eq!(*client.created_at(), now);
         assert_eq!(*client.updated_at(), now);
+    }
+
+    #[test]
+    fn client_new_sets_status_active() {
+        let client = Client::new(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            None,
+            fixed_time(1_700_000_000),
+        );
+
+        assert_eq!(client.status(), ClientStatus::Active);
+        assert!(client.is_active());
+        assert!(!client.is_archived());
     }
 
     /// Restore собирает клиента из уже существующего состояния и сохраняет
@@ -512,14 +594,34 @@ mod tests {
             client_name("Иван"),
             client_phone("+375291234567"),
             None,
+            ClientStatus::Archived,
             created_at,
             updated_at,
         )
         .unwrap();
 
+        assert_eq!(client.status(), ClientStatus::Archived);
+        assert!(client.is_archived());
         assert_eq!(*client.created_at(), created_at);
         assert_eq!(*client.updated_at(), updated_at);
         assert!(client.notes().is_none());
+    }
+
+    #[test]
+    fn client_restore_preserves_status() {
+        let client = Client::restore(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            None,
+            ClientStatus::Archived,
+            fixed_time(1_700_000_000),
+            fixed_time(1_700_000_100),
+        )
+        .unwrap();
+
+        assert_eq!(client.status(), ClientStatus::Archived);
+        assert!(client.is_archived());
     }
 
     /// Если данные из БД нарушают временной порядок, доменная модель не должна
@@ -534,6 +636,7 @@ mod tests {
             client_name("Иван"),
             client_phone("+375291234567"),
             None,
+            ClientStatus::Active,
             created_at,
             updated_at,
         )
@@ -674,5 +777,72 @@ mod tests {
         assert_eq!(client.name().as_str(), "Иван");
         assert_eq!(client.notes().unwrap().as_str(), "Заметка");
         assert_eq!(*client.updated_at(), created_at);
+    }
+
+    #[test]
+    fn client_archive_sets_status_archived_and_updates_timestamp() {
+        let created_at = fixed_time(1_700_000_000);
+        let archived_at = fixed_time(1_700_000_100);
+        let mut client = Client::new(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            Some(client_notes("Заметка")),
+            created_at,
+        );
+
+        client.archive(archived_at).unwrap();
+
+        assert_eq!(client.status(), ClientStatus::Archived);
+        assert!(client.is_archived());
+        assert_eq!(client.name().as_str(), "Иван");
+        assert_eq!(client.phone().as_str(), "+375291234567");
+        assert_eq!(client.notes().unwrap().as_str(), "Заметка");
+        assert_eq!(*client.updated_at(), archived_at);
+    }
+
+    #[test]
+    fn client_restore_from_archive_sets_status_active_and_updates_timestamp() {
+        let created_at = fixed_time(1_700_000_000);
+        let archived_at = fixed_time(1_700_000_100);
+        let restored_at = fixed_time(1_700_000_200);
+        let mut client = Client::new(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            None,
+            created_at,
+        );
+
+        client.archive(archived_at).unwrap();
+        client.restore_from_archive(restored_at).unwrap();
+
+        assert_eq!(client.status(), ClientStatus::Active);
+        assert!(client.is_active());
+        assert_eq!(*client.updated_at(), restored_at);
+    }
+
+    #[test]
+    fn client_archive_rejects_timestamp_before_created_at_without_changing_status() {
+        let created_at = fixed_time(1_700_000_000);
+        let mut client = Client::new(
+            client_id(),
+            client_name("Иван"),
+            client_phone("+375291234567"),
+            None,
+            created_at,
+        );
+
+        let error = client.archive(fixed_time(1_699_999_999)).unwrap_err();
+
+        assert_eq!(error, ClientError::UpdatedAtBeforeCreatedAt);
+        assert_eq!(client.status(), ClientStatus::Active);
+        assert_eq!(*client.updated_at(), created_at);
+    }
+
+    #[test]
+    fn client_status_display_returns_stable_codes() {
+        assert_eq!(ClientStatus::Active.to_string(), "active");
+        assert_eq!(ClientStatus::Archived.to_string(), "archived");
     }
 }
