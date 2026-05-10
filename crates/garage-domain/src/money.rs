@@ -184,6 +184,27 @@ impl Money {
         Self::new(amount_minor, self.currency)
     }
 
+    /// Безопасно умножает сумму на целое неотрицательное количество.
+    ///
+    /// Метод нужен для строк ремонта и других сценариев, где цена одной единицы
+    /// умножается на количество. Множитель выбран как `u32`, потому что складские
+    /// количества в домене представлены `PartQuantity`.
+    ///
+    /// Алгоритм:
+    /// 1. Переводим множитель в `i64`. Любой `u32` помещается в `i64`.
+    /// 2. Используем `checked_mul`, чтобы переполнение не превратилось в
+    ///    некорректную финансовую сумму.
+    /// 3. Пропускаем результат через `Money::new`, сохраняя единый вход для
+    ///    проверки неотрицательности.
+    pub fn checked_mul_u32(self, multiplier: u32) -> Result<Self, MoneyError> {
+        let amount_minor = self
+            .amount_minor
+            .checked_mul(i64::from(multiplier))
+            .ok_or(MoneyError::Overflow)?;
+
+        Self::new(amount_minor, self.currency)
+    }
+
     /// Проверяет, что две суммы выражены в одной валюте.
     ///
     /// Метод приватный, потому что это не отдельная операция домена, а общий
@@ -532,6 +553,47 @@ mod tests {
         let error = left.checked_sub(right).unwrap_err();
 
         assert_eq!(error, MoneyError::NegativeAmount);
+    }
+
+    /// Умножение на ноль должно возвращать нулевую сумму той же валюты.
+    #[test]
+    fn checked_mul_u32_by_zero_returns_zero() {
+        let money = Money::byn_minor(1250).unwrap();
+
+        let result = money.checked_mul_u32(0).unwrap();
+
+        assert_eq!(result, Money::zero(Currency::Byn));
+    }
+
+    /// Умножение на единицу не меняет сумму.
+    #[test]
+    fn checked_mul_u32_by_one_keeps_amount() {
+        let money = Money::usd_minor(2599).unwrap();
+
+        let result = money.checked_mul_u32(1).unwrap();
+
+        assert_eq!(result, money);
+    }
+
+    /// Умножение на два должно работать как обычная целочисленная арифметика в
+    /// minor units без округления.
+    #[test]
+    fn checked_mul_u32_by_two_doubles_amount() {
+        let money = Money::byn_minor(750).unwrap();
+
+        let result = money.checked_mul_u32(2).unwrap();
+
+        assert_eq!(result, Money::byn_minor(1500).unwrap());
+    }
+
+    /// Переполнение при умножении возвращается явной ошибкой.
+    #[test]
+    fn checked_mul_u32_rejects_overflow() {
+        let money = Money::new(i64::MAX, Currency::Byn).unwrap();
+
+        let error = money.checked_mul_u32(2).unwrap_err();
+
+        assert_eq!(error, MoneyError::Overflow);
     }
 
     /// Signed-сумма допускает отрицательные значения и сохраняет валюту.

@@ -7,6 +7,7 @@ pub mod part;
 pub mod part_supply;
 pub mod phone;
 pub mod repair;
+pub mod repair_part;
 
 pub use booking::*;
 pub use car::*;
@@ -17,3 +18,4 @@ pub use part::*;
 pub use part_supply::*;
 pub use phone::*;
 pub use repair::*;
+pub use repair_part::*;

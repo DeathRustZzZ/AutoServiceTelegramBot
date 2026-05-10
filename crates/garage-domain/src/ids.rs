@@ -196,3 +196,33 @@ impl Default for RepairId {
         Self::new()
     }
 }
+
+/// Идентификатор факта использования запчасти в ремонте.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RepairPartId(Uuid);
+
+impl RepairPartId {
+    /// Создает новый идентификатор для строки использованной запчасти.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Восстанавливает идентификатор строки ремонта из UUID внешнего слоя.
+    ///
+    /// Метод не проверяет, существует ли связанный ремонт или складская позиция.
+    /// Эти проверки принадлежат прикладному слою и репозиториям.
+    pub fn from_uuid(value: Uuid) -> Self {
+        Self(value)
+    }
+
+    /// Возвращает сырой UUID для инфраструктуры и интеграций.
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for RepairPartId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
