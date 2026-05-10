@@ -226,3 +226,34 @@ impl Default for RepairPartId {
         Self::new()
     }
 }
+
+/// Идентификатор отдельной оплаты по ремонту.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PaymentId(Uuid);
+
+impl PaymentId {
+    /// Создает новый идентификатор оплаты, которая рождается внутри домена.
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    /// Восстанавливает идентификатор оплаты из UUID внешнего слоя.
+    ///
+    /// Метод не проверяет, существует ли связанный ремонт и была ли оплата уже
+    /// учтена в агрегированной сумме ремонта. Эти проверки принадлежат будущему
+    /// application-layer сценарию.
+    pub fn from_uuid(value: Uuid) -> Self {
+        Self(value)
+    }
+
+    /// Возвращает сырой UUID для инфраструктуры и интеграций.
+    pub fn as_uuid(&self) -> Uuid {
+        self.0
+    }
+}
+
+impl Default for PaymentId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
