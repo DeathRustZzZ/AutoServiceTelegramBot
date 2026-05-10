@@ -10,6 +10,22 @@ use super::common::{
     require_car, require_client, require_repair,
 };
 
+/// Command for starting a repair.
+///
+/// `RepairService` still accepts already validated domain value objects. The
+/// command only groups use-case input; it is not an infrastructure DTO.
+pub struct StartRepairCommand {
+    pub client_id: ClientId,
+    pub car_id: CarId,
+    pub booking_id: Option<BookingId>,
+    pub description: RepairDescription,
+    pub labor_price: Money,
+    pub parts_price: Money,
+    pub parts_cost: Money,
+    pub notes: Option<RepairNotes>,
+    pub now: DateTime<Utc>,
+}
+
 /// Use cases for repairs.
 pub struct RepairService<Clients, Cars, Bookings, Repairs> {
     clients: Clients,
@@ -34,39 +50,27 @@ where
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_repair(
-        &self,
-        client_id: ClientId,
-        car_id: CarId,
-        booking_id: Option<BookingId>,
-        description: RepairDescription,
-        labor_price: Money,
-        parts_price: Money,
-        parts_cost: Money,
-        notes: Option<RepairNotes>,
-        now: DateTime<Utc>,
-    ) -> AppResult<Repair> {
-        require_client(&self.clients, client_id).await?;
-        let car = require_car(&self.cars, car_id).await?;
-        ensure_car_belongs_to_client(&car, client_id)?;
+    pub async fn start_repair(&self, command: StartRepairCommand) -> AppResult<Repair> {
+        require_client(&self.clients, command.client_id).await?;
+        let car = require_car(&self.cars, command.car_id).await?;
+        ensure_car_belongs_to_client(&car, command.client_id)?;
 
-        if let Some(booking_id) = booking_id {
+        if let Some(booking_id) = command.booking_id {
             let booking = require_booking(&self.bookings, booking_id).await?;
-            ensure_booking_belongs_to_client_and_car(&booking, client_id, car_id)?;
+            ensure_booking_belongs_to_client_and_car(&booking, command.client_id, command.car_id)?;
         }
 
         let repair = Repair::new(
             RepairId::new(),
-            client_id,
-            car_id,
-            booking_id,
-            description,
-            labor_price,
-            parts_price,
-            parts_cost,
-            notes,
-            now,
+            command.client_id,
+            command.car_id,
+            command.booking_id,
+            command.description,
+            command.labor_price,
+            command.parts_price,
+            command.parts_cost,
+            command.notes,
+            command.now,
         )?;
         self.repairs.save(&repair).await?;
         Ok(repair)

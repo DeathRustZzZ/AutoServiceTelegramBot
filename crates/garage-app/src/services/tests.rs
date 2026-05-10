@@ -107,7 +107,7 @@ impl BookingRepository for Store {
             .filter(|booking| {
                 booking.is_scheduled()
                     && *booking.scheduled_at() >= from
-                    && *booking.scheduled_at() <= to
+                    && *booking.scheduled_at() < to
             })
             .cloned()
             .collect())
@@ -275,6 +275,24 @@ fn sku(value: &str) -> Option<PartSku> {
 
 fn description(value: &str) -> RepairDescription {
     RepairDescription::parse(value).unwrap()
+}
+
+fn start_repair_command(
+    client_id: ClientId,
+    car_id: CarId,
+    booking_id: Option<BookingId>,
+) -> StartRepairCommand {
+    StartRepairCommand {
+        client_id,
+        car_id,
+        booking_id,
+        description: description("Ремонт"),
+        labor_price: Money::byn_minor(1000).unwrap(),
+        parts_price: Money::byn_minor(0).unwrap(),
+        parts_cost: Money::byn_minor(0).unwrap(),
+        notes: None,
+        now: ts(9),
+    }
 }
 
 async fn create_client_fixture(store: Arc<Store>, name: &str, phone: &str) -> Client {
@@ -460,7 +478,7 @@ async fn booking_service_schedules_lists_and_transitions_bookings() {
 }
 
 #[tokio::test]
-async fn booking_service_rejects_car_from_another_client() {
+async fn schedule_booking_fails_when_car_does_not_belong_to_client() {
     let store = store();
     let first = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
     let second = create_client_fixture(store.clone(), "Петр", "+375292222222").await;
@@ -483,6 +501,113 @@ async fn booking_service_rejects_car_from_another_client() {
         Err(AppError::CarDoesNotBelongToClient { car_id, client_id })
             if car_id == car.id() && client_id == second.id()
     ));
+}
+
+#[tokio::test]
+async fn get_booking_details_returns_booking_client_and_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+    let booking = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            ts(12),
+            reason("Диагностика"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+
+    let details = service.get_booking_details(booking.id()).await.unwrap();
+    assert_eq!(details.booking, booking);
+    assert_eq!(details.client, client);
+    assert_eq!(details.car, car);
+}
+
+#[tokio::test]
+async fn list_today_bookings_uses_current_day_boundaries() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+    let today = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            Utc.with_ymd_and_hms(2026, 5, 10, 23, 59, 0).unwrap(),
+            reason("Сегодня"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+    service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            Utc.with_ymd_and_hms(2026, 5, 11, 0, 0, 0).unwrap(),
+            reason("Завтра"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+
+    let bookings = service
+        .list_today_bookings(Utc.with_ymd_and_hms(2026, 5, 10, 15, 30, 0).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(bookings, vec![today]);
+}
+
+#[tokio::test]
+async fn list_tomorrow_bookings_uses_next_day_boundaries() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+    service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            Utc.with_ymd_and_hms(2026, 5, 10, 23, 59, 0).unwrap(),
+            reason("Сегодня"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+    let tomorrow = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            Utc.with_ymd_and_hms(2026, 5, 11, 0, 0, 0).unwrap(),
+            reason("Завтра"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+    service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            Utc.with_ymd_and_hms(2026, 5, 12, 0, 0, 0).unwrap(),
+            reason("Послезавтра"),
+            None,
+            ts(8),
+        )
+        .await
+        .unwrap();
+
+    let bookings = service
+        .list_tomorrow_bookings(Utc.with_ymd_and_hms(2026, 5, 10, 15, 30, 0).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(bookings, vec![tomorrow]);
 }
 
 #[tokio::test]
@@ -556,17 +681,17 @@ async fn repair_service_starts_records_payment_and_completes_repair() {
     let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
     let repair = service
-        .start_repair(
-            client.id(),
-            car.id(),
-            Some(booking.id()),
-            description("Замена масла"),
-            Money::byn_minor(5000).unwrap(),
-            Money::byn_minor(3000).unwrap(),
-            Money::byn_minor(2000).unwrap(),
-            None,
-            ts(9),
-        )
+        .start_repair(StartRepairCommand {
+            client_id: client.id(),
+            car_id: car.id(),
+            booking_id: Some(booking.id()),
+            description: description("Замена масла"),
+            labor_price: Money::byn_minor(5000).unwrap(),
+            parts_price: Money::byn_minor(3000).unwrap(),
+            parts_cost: Money::byn_minor(2000).unwrap(),
+            notes: None,
+            now: ts(9),
+        })
         .await
         .unwrap();
 
@@ -582,7 +707,26 @@ async fn repair_service_starts_records_payment_and_completes_repair() {
 }
 
 #[tokio::test]
-async fn repair_service_rejects_booking_from_another_car() {
+async fn start_repair_fails_when_car_does_not_belong_to_client() {
+    let store = store();
+    let first = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let second = create_client_fixture(store.clone(), "Петр", "+375292222222").await;
+    let car = create_car_fixture(store.clone(), first.id(), "BMW", "X5").await;
+    let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .start_repair(start_repair_command(second.id(), car.id(), None))
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AppError::CarDoesNotBelongToClient { car_id, client_id })
+            if car_id == car.id() && client_id == second.id()
+    ));
+}
+
+#[tokio::test]
+async fn start_repair_fails_when_booking_belongs_to_another_car() {
     let store = store();
     let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
     let first_car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
@@ -601,17 +745,11 @@ async fn repair_service_rejects_booking_from_another_car() {
     let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
     let result = service
-        .start_repair(
+        .start_repair(start_repair_command(
             client.id(),
             second_car.id(),
             Some(booking.id()),
-            description("Ремонт"),
-            Money::byn_minor(1000).unwrap(),
-            Money::byn_minor(0).unwrap(),
-            Money::byn_minor(0).unwrap(),
-            None,
-            ts(9),
-        )
+        ))
         .await;
 
     assert!(matches!(
@@ -629,17 +767,7 @@ async fn repair_service_cancels_repair_and_rejects_later_payment() {
     let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
     let repair = service
-        .start_repair(
-            client.id(),
-            car.id(),
-            None,
-            description("Ремонт"),
-            Money::byn_minor(1000).unwrap(),
-            Money::byn_minor(0).unwrap(),
-            Money::byn_minor(0).unwrap(),
-            None,
-            ts(9),
-        )
+        .start_repair(start_repair_command(client.id(), car.id(), None))
         .await
         .unwrap();
 
@@ -661,17 +789,17 @@ async fn statistics_service_calculates_profit_summary_for_currency() {
         RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
     let byn_repair = repair_service
-        .start_repair(
-            client.id(),
-            car.id(),
-            None,
-            description("BYN repair"),
-            Money::byn_minor(5000).unwrap(),
-            Money::byn_minor(3000).unwrap(),
-            Money::byn_minor(2000).unwrap(),
-            None,
-            ts(9),
-        )
+        .start_repair(StartRepairCommand {
+            client_id: client.id(),
+            car_id: car.id(),
+            booking_id: None,
+            description: description("BYN repair"),
+            labor_price: Money::byn_minor(5000).unwrap(),
+            parts_price: Money::byn_minor(3000).unwrap(),
+            parts_cost: Money::byn_minor(2000).unwrap(),
+            notes: None,
+            now: ts(9),
+        })
         .await
         .unwrap();
     repair_service
@@ -684,17 +812,17 @@ async fn statistics_service_calculates_profit_summary_for_currency() {
         .unwrap();
 
     let usd_repair = repair_service
-        .start_repair(
-            client.id(),
-            car.id(),
-            None,
-            description("USD repair"),
-            Money::usd_minor(1000).unwrap(),
-            Money::usd_minor(0).unwrap(),
-            Money::usd_minor(0).unwrap(),
-            None,
-            ts(9),
-        )
+        .start_repair(StartRepairCommand {
+            client_id: client.id(),
+            car_id: car.id(),
+            booking_id: None,
+            description: description("USD repair"),
+            labor_price: Money::usd_minor(1000).unwrap(),
+            parts_price: Money::usd_minor(0).unwrap(),
+            parts_cost: Money::usd_minor(0).unwrap(),
+            notes: None,
+            now: ts(9),
+        })
         .await
         .unwrap();
     repair_service

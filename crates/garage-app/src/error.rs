@@ -74,8 +74,11 @@ pub enum AppError {
     /// Конкретная инфраструктура позже сможет завернуть сюда SQLx/PostgreSQL
     /// ошибку, нарушение уникальности или проблему соединения. App-layer не
     /// должен зависеть от этих типов напрямую.
-    #[error("repository error: {0}")]
-    Repository(String),
+    #[error("repository error during {operation}: {message}")]
+    Repository {
+        operation: &'static str,
+        message: String,
+    },
 
     /// Ошибка домена клиента.
     #[error(transparent)]

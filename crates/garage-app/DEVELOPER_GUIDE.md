@@ -250,9 +250,11 @@ pub type AppResult<T> = Result<T, AppError>;
    - `Repair`
    - `Money`
    - `PhoneNumber`
-   - `Repository(String)`
+   - `Repository { operation, message }`
 
-`Repository(String)` пока оставлен простым, чтобы не тащить SQLx в app-layer.
+`Repository { operation, message }` остается инфраструктурно-нейтральным:
+`garage-app` не знает про `sqlx::Error`, но сохраняет контекст операции для UI,
+логов и диагностики.
 
 ---
 

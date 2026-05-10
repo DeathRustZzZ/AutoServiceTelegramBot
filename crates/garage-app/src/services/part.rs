@@ -18,6 +18,7 @@ where
         Self { parts }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_part(
         &self,
         name: PartName,
