@@ -6,6 +6,7 @@ pub mod client;
 pub mod part;
 pub mod payment;
 pub mod repair;
+pub mod repair_part;
 
 use garage_app::AppError;
 use garage_domain::{Currency, PartQuantity};
