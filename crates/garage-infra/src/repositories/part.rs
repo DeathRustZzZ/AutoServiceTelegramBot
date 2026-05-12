@@ -113,7 +113,8 @@ impl PartRepository for PgPartRepository {
                 created_at,
                 updated_at
             FROM parts
-            WHERE quantity <= min_quantity
+            WHERE status = 'active'
+              AND quantity <= min_quantity
             ORDER BY quantity ASC, name ASC, id ASC
             "#,
         )
