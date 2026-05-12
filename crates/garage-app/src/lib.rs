@@ -21,7 +21,9 @@
 pub mod error;
 pub mod repositories;
 pub mod services;
+pub mod unit_of_work;
 
 pub use error::*;
 pub use repositories::*;
 pub use services::*;
+pub use unit_of_work::*;

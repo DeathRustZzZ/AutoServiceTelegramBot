@@ -21,6 +21,20 @@ struct Store {
     payments: Mutex<HashMap<PaymentId, Payment>>,
     repair_parts: Mutex<HashMap<RepairPartId, RepairPart>>,
     stock_movements: Mutex<HashMap<StockMovementId, StockMovement>>,
+    fail_repair_save: Mutex<bool>,
+    fail_payment_save: Mutex<bool>,
+    fail_part_save: Mutex<bool>,
+    fail_repair_part_save: Mutex<bool>,
+    fail_stock_movement_save: Mutex<bool>,
+    commit_called: Mutex<bool>,
+    rollback_called: Mutex<bool>,
+}
+
+fn repository_failure(operation: &'static str) -> AppError {
+    AppError::Repository {
+        operation,
+        message: "forced failure".to_owned(),
+    }
 }
 
 #[async_trait]
@@ -124,6 +138,10 @@ impl PartRepository for Store {
     }
 
     async fn save(&self, part: &Part) -> AppResult<()> {
+        if *self.fail_part_save.lock().unwrap() {
+            return Err(repository_failure("save part"));
+        }
+
         self.parts.lock().unwrap().insert(part.id(), part.clone());
         Ok(())
     }
@@ -191,6 +209,10 @@ impl RepairRepository for Store {
     }
 
     async fn save(&self, repair: &Repair) -> AppResult<()> {
+        if *self.fail_repair_save.lock().unwrap() {
+            return Err(repository_failure("save repair"));
+        }
+
         self.repairs
             .lock()
             .unwrap()
@@ -247,6 +269,10 @@ impl PaymentRepository for Store {
     }
 
     async fn save(&self, payment: &Payment) -> AppResult<()> {
+        if *self.fail_payment_save.lock().unwrap() {
+            return Err(repository_failure("save payment"));
+        }
+
         self.payments
             .lock()
             .unwrap()
@@ -273,6 +299,10 @@ impl RepairPartRepository for Store {
     }
 
     async fn save(&self, repair_part: &RepairPart) -> AppResult<()> {
+        if *self.fail_repair_part_save.lock().unwrap() {
+            return Err(repository_failure("save repair part"));
+        }
+
         self.repair_parts
             .lock()
             .unwrap()
@@ -299,6 +329,10 @@ impl StockMovementRepository for Store {
     }
 
     async fn save(&self, movement: &StockMovement) -> AppResult<()> {
+        if *self.fail_stock_movement_save.lock().unwrap() {
+            return Err(repository_failure("save stock movement"));
+        }
+
         self.stock_movements
             .lock()
             .unwrap()
@@ -315,6 +349,64 @@ impl StockMovementRepository for Store {
             .filter(|movement| movement.part_id() == part_id)
             .cloned()
             .collect())
+    }
+}
+
+#[async_trait]
+impl PaymentUnitOfWork for Store {
+    type Repairs = Self;
+    type Payments = Self;
+
+    fn repairs(&self) -> &Self::Repairs {
+        self
+    }
+
+    fn payments(&self) -> &Self::Payments {
+        self
+    }
+
+    async fn commit(&self) -> AppResult<()> {
+        *self.commit_called.lock().unwrap() = true;
+        Ok(())
+    }
+
+    async fn rollback(&self) -> AppResult<()> {
+        *self.rollback_called.lock().unwrap() = true;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl RepairPartUnitOfWork for Store {
+    type Repairs = Self;
+    type Parts = Self;
+    type RepairParts = Self;
+    type StockMovements = Self;
+
+    fn repairs(&self) -> &Self::Repairs {
+        self
+    }
+
+    fn parts(&self) -> &Self::Parts {
+        self
+    }
+
+    fn repair_parts(&self) -> &Self::RepairParts {
+        self
+    }
+
+    fn stock_movements(&self) -> &Self::StockMovements {
+        self
+    }
+
+    async fn commit(&self) -> AppResult<()> {
+        *self.commit_called.lock().unwrap() = true;
+        Ok(())
+    }
+
+    async fn rollback(&self) -> AppResult<()> {
+        *self.rollback_called.lock().unwrap() = true;
+        Ok(())
     }
 }
 
@@ -1592,6 +1684,146 @@ async fn get_payment_returns_payment_not_found() {
 }
 
 #[tokio::test]
+async fn transactional_record_payment_commits_after_saving_repair_and_payment() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service = PaymentTransactionalService::new(store.clone());
+
+    let payment = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(500).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        RepairRepository::get(&store, repair.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .paid_amount(),
+        Money::byn_minor(500).unwrap()
+    );
+    assert_eq!(
+        PaymentRepository::get(&store, payment.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        payment
+    );
+    assert!(*store.commit_called.lock().unwrap());
+    assert!(!*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_record_payment_rolls_back_when_repair_save_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    *store.fail_repair_save.lock().unwrap() = true;
+    let service = PaymentTransactionalService::new(store.clone());
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(500).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(
+        matches!(result, Err(AppError::Repository { operation, .. }) if operation == "save repair")
+    );
+    assert!(store.payments.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_record_payment_rolls_back_when_payment_save_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    *store.fail_payment_save.lock().unwrap() = true;
+    let service = PaymentTransactionalService::new(store.clone());
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(500).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(
+        matches!(result, Err(AppError::Repository { operation, .. }) if operation == "save payment")
+    );
+    assert!(store.payments.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_record_payment_does_not_commit_when_domain_validation_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let before = repair.clone();
+    let service = PaymentTransactionalService::new(store.clone());
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(1_001).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::Repair(_))));
+    assert_eq!(
+        RepairRepository::get(&store, repair.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        before
+    );
+    assert!(store.payments.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(!*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
 async fn use_part_in_repair_returns_result_with_updated_part_and_movement() {
     let store = store();
     let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
@@ -2103,6 +2335,204 @@ async fn get_repair_part_returns_not_found() {
     let result = service.get_repair_part(missing_repair_part).await;
 
     assert!(matches!(result, Err(AppError::RepairPartNotFound(id)) if id == missing_repair_part));
+}
+
+#[tokio::test]
+async fn transactional_use_part_in_repair_commits_after_saving_all_entities() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service = RepairPartTransactionalService::new(store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(result.part.quantity(), PartQuantity::new(8));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(8)
+    );
+    assert_eq!(
+        RepairPartRepository::get(&store, result.repair_part.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        result.repair_part
+    );
+    assert_eq!(
+        StockMovementRepository::get(&store, result.stock_movement.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        result.stock_movement
+    );
+    assert!(*store.commit_called.lock().unwrap());
+    assert!(!*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_use_part_in_repair_rolls_back_when_part_save_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    *store.fail_part_save.lock().unwrap() = true;
+    let service = RepairPartTransactionalService::new(store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(
+        matches!(result, Err(AppError::Repository { operation, .. }) if operation == "save part")
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_use_part_in_repair_rolls_back_when_repair_part_save_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    *store.fail_repair_part_save.lock().unwrap() = true;
+    let service = RepairPartTransactionalService::new(store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(
+        matches!(result, Err(AppError::Repository { operation, .. }) if operation == "save repair part")
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_use_part_in_repair_rolls_back_when_stock_movement_save_fails() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    *store.fail_stock_movement_save.lock().unwrap() = true;
+    let service = RepairPartTransactionalService::new(store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(
+        matches!(result, Err(AppError::Repository { operation, .. }) if operation == "save stock movement")
+    );
+    assert_eq!(store.repair_parts.lock().unwrap().len(), 1);
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(*store.rollback_called.lock().unwrap());
+}
+
+#[tokio::test]
+async fn transactional_use_part_in_repair_does_not_commit_when_insufficient_stock() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 1).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service = RepairPartTransactionalService::new(store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::Part(_))));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(1)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+    assert!(!*store.commit_called.lock().unwrap());
+    assert!(!*store.rollback_called.lock().unwrap());
 }
 
 #[tokio::test]
