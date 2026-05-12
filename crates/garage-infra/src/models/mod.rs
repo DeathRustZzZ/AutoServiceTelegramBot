@@ -1,3 +1,5 @@
+//! Плоские SQL row-модели для PostgreSQL-инфраструктуры.
+
 pub mod booking;
 pub mod car;
 pub mod client;

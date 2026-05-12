@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
+/// Строка таблицы `repair_parts`.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct RepairPartRow {
     pub id: Uuid,
