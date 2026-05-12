@@ -90,6 +90,9 @@ pub enum AppError {
         stock_movement_id: StockMovementId,
         part_id: PartId,
     },
+    /// Нельзя списывать запчасти в отмененный ремонт.
+    #[error("cannot use part for cancelled repair {repair_id:?}")]
+    CannotUsePartForCancelledRepair { repair_id: RepairId },
 
     /// Ошибка реализации репозитория.
     ///

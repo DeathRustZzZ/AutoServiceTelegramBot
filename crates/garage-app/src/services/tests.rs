@@ -19,6 +19,8 @@ struct Store {
     supplies: Mutex<HashMap<PartSupplyId, PartSupply>>,
     repairs: Mutex<HashMap<RepairId, Repair>>,
     payments: Mutex<HashMap<PaymentId, Payment>>,
+    repair_parts: Mutex<HashMap<RepairPartId, RepairPart>>,
+    stock_movements: Mutex<HashMap<StockMovementId, StockMovement>>,
 }
 
 #[async_trait]
@@ -264,6 +266,58 @@ impl PaymentRepository for Store {
     }
 }
 
+#[async_trait]
+impl RepairPartRepository for Store {
+    async fn get(&self, id: RepairPartId) -> AppResult<Option<RepairPart>> {
+        Ok(self.repair_parts.lock().unwrap().get(&id).cloned())
+    }
+
+    async fn save(&self, repair_part: &RepairPart) -> AppResult<()> {
+        self.repair_parts
+            .lock()
+            .unwrap()
+            .insert(repair_part.id(), repair_part.clone());
+        Ok(())
+    }
+
+    async fn list_by_repair(&self, repair_id: RepairId) -> AppResult<Vec<RepairPart>> {
+        Ok(self
+            .repair_parts
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|repair_part| repair_part.repair_id() == repair_id)
+            .cloned()
+            .collect())
+    }
+}
+
+#[async_trait]
+impl StockMovementRepository for Store {
+    async fn get(&self, id: StockMovementId) -> AppResult<Option<StockMovement>> {
+        Ok(self.stock_movements.lock().unwrap().get(&id).cloned())
+    }
+
+    async fn save(&self, movement: &StockMovement) -> AppResult<()> {
+        self.stock_movements
+            .lock()
+            .unwrap()
+            .insert(movement.id(), movement.clone());
+        Ok(())
+    }
+
+    async fn list_by_part(&self, part_id: PartId) -> AppResult<Vec<StockMovement>> {
+        Ok(self
+            .stock_movements
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|movement| movement.part_id() == part_id)
+            .cloned()
+            .collect())
+    }
+}
+
 fn store() -> Arc<Store> {
     Arc::new(Store::default())
 }
@@ -306,6 +360,10 @@ fn description(value: &str) -> RepairDescription {
 
 fn payment_comment(value: &str) -> PaymentComment {
     PaymentComment::parse(value).unwrap().unwrap()
+}
+
+fn stock_comment(value: &str) -> StockMovementComment {
+    StockMovementComment::parse(value).unwrap().unwrap()
 }
 
 fn document_photo(value: &str) -> CarDocumentPhotoRef {
@@ -1234,6 +1292,332 @@ async fn get_payment_returns_payment_not_found() {
     let result = service.get_payment(missing_payment).await;
 
     assert!(matches!(result, Err(AppError::PaymentNotFound(id)) if id == missing_payment));
+}
+
+#[tokio::test]
+async fn use_part_in_repair_saves_part_repair_part_and_stock_movement() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let repair_part = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: Some(stock_comment("Списано на ремонт BMW")),
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    let saved_part = PartRepository::get(&store, part.id())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved_part.quantity(), PartQuantity::new(8));
+    assert_eq!(
+        RepairPartRepository::get(&store, repair_part.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        repair_part
+    );
+
+    let movements = StockMovementRepository::list_by_part(&store, part.id())
+        .await
+        .unwrap();
+    assert_eq!(movements.len(), 1);
+    assert_eq!(movements[0].movement_type(), StockMovementType::Out);
+    assert_eq!(movements[0].reason(), StockMovementReason::RepairUsage);
+    assert_eq!(movements[0].quantity(), PartQuantity::new(2));
+}
+
+#[tokio::test]
+async fn use_part_in_repair_returns_repair_not_found() {
+    let store = store();
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let missing_repair = RepairId::from_uuid(Uuid::from_u128(910));
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: missing_repair,
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::RepairNotFound(id)) if id == missing_repair));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(10)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_returns_part_not_found() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let missing_part = PartId::from_uuid(Uuid::from_u128(911));
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: missing_part,
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::PartNotFound(id)) if id == missing_part));
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_rejects_cancelled_repair() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair_service =
+        RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let repair = repair_service
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let repair = repair_service
+        .cancel_repair(repair.id(), ts(10))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(11),
+            now: ts(11),
+        })
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AppError::CannotUsePartForCancelledRepair { repair_id }) if repair_id == repair.id()
+    ));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(10)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_rejects_insufficient_stock() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 1).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::Part(_))));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(1)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_rejects_currency_mismatch() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::usd_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::RepairPart(_))));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(10)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn list_repair_parts_requires_existing_repair() {
+    let store = store();
+    let missing_repair = RepairId::from_uuid(Uuid::from_u128(912));
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service.list_repair_parts(missing_repair).await;
+
+    assert!(matches!(result, Err(AppError::RepairNotFound(id)) if id == missing_repair));
+}
+
+#[tokio::test]
+async fn list_repair_parts_returns_parts_for_repair() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let repair_part = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    let repair_parts = service.list_repair_parts(repair.id()).await.unwrap();
+
+    assert_eq!(repair_parts, vec![repair_part]);
+}
+
+#[tokio::test]
+async fn get_repair_part_returns_repair_part() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let repair_part = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    let found = service.get_repair_part(repair_part.id()).await.unwrap();
+
+    assert_eq!(found, repair_part);
+}
+
+#[tokio::test]
+async fn get_repair_part_returns_not_found() {
+    let store = store();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let missing_repair_part = RepairPartId::from_uuid(Uuid::from_u128(913));
+
+    let result = service.get_repair_part(missing_repair_part).await;
+
+    assert!(matches!(result, Err(AppError::RepairPartNotFound(id)) if id == missing_repair_part));
 }
 
 #[tokio::test]

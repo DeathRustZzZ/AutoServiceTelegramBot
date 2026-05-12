@@ -12,6 +12,7 @@ mod part;
 mod part_supply;
 mod payment;
 mod repair;
+mod repair_part;
 mod statistics;
 
 pub use booking::*;
@@ -21,6 +22,7 @@ pub use part::*;
 pub use part_supply::*;
 pub use payment::*;
 pub use repair::*;
+pub use repair_part::*;
 pub use statistics::*;
 
 #[cfg(test)]
