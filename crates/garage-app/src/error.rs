@@ -78,6 +78,18 @@ pub enum AppError {
         booking_id: BookingId,
         car_id: CarId,
     },
+    /// Строка использованной запчасти относится к другому ремонту.
+    #[error("repair part {repair_part_id:?} does not belong to repair {repair_id:?}")]
+    RepairPartDoesNotBelongToRepair {
+        repair_part_id: RepairPartId,
+        repair_id: RepairId,
+    },
+    /// Движение склада относится к другой складской позиции.
+    #[error("stock movement {stock_movement_id:?} does not belong to part {part_id:?}")]
+    StockMovementDoesNotBelongToPart {
+        stock_movement_id: StockMovementId,
+        part_id: PartId,
+    },
 
     /// Ошибка реализации репозитория.
     ///

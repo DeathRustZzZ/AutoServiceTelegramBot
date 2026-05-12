@@ -7,12 +7,13 @@
 
 use garage_domain::{
     Booking, BookingId, Car, CarId, Client, ClientId, Part, PartId, PartSupply, PartSupplyId,
-    Repair, RepairId,
+    Payment, PaymentId, Repair, RepairId, RepairPart, RepairPartId, StockMovement, StockMovementId,
 };
 
 use crate::{
     AppError, AppResult, BookingRepository, CarRepository, ClientRepository, PartRepository,
-    PartSupplyRepository, RepairRepository,
+    PartSupplyRepository, PaymentRepository, RepairPartRepository, RepairRepository,
+    StockMovementRepository,
 };
 
 /// Загружает клиента или возвращает `ClientNotFound`.
@@ -81,6 +82,48 @@ where
         .ok_or(AppError::RepairNotFound(repair_id))
 }
 
+/// Загружает оплату или возвращает `PaymentNotFound`.
+#[allow(dead_code)]
+pub(crate) async fn require_payment<R>(payments: &R, payment_id: PaymentId) -> AppResult<Payment>
+where
+    R: PaymentRepository,
+{
+    payments
+        .get(payment_id)
+        .await?
+        .ok_or(AppError::PaymentNotFound(payment_id))
+}
+
+/// Загружает строку использованной запчасти или возвращает `RepairPartNotFound`.
+#[allow(dead_code)]
+pub(crate) async fn require_repair_part<R>(
+    repair_parts: &R,
+    repair_part_id: RepairPartId,
+) -> AppResult<RepairPart>
+where
+    R: RepairPartRepository,
+{
+    repair_parts
+        .get(repair_part_id)
+        .await?
+        .ok_or(AppError::RepairPartNotFound(repair_part_id))
+}
+
+/// Загружает движение склада или возвращает `StockMovementNotFound`.
+#[allow(dead_code)]
+pub(crate) async fn require_stock_movement<R>(
+    stock_movements: &R,
+    stock_movement_id: StockMovementId,
+) -> AppResult<StockMovement>
+where
+    R: StockMovementRepository,
+{
+    stock_movements
+        .get(stock_movement_id)
+        .await?
+        .ok_or(AppError::StockMovementNotFound(stock_movement_id))
+}
+
 /// Проверяет, что автомобиль принадлежит указанному клиенту.
 ///
 /// Это защита от операций вида "изменить машину клиента A, передав car_id
@@ -90,6 +133,38 @@ pub(crate) fn ensure_car_belongs_to_client(car: &Car, client_id: ClientId) -> Ap
         return Err(AppError::CarDoesNotBelongToClient {
             car_id: car.id(),
             client_id,
+        });
+    }
+
+    Ok(())
+}
+
+/// Проверяет, что строка использованной запчасти относится к указанному ремонту.
+#[allow(dead_code)]
+pub(crate) fn ensure_repair_part_belongs_to_repair(
+    repair_part: &RepairPart,
+    repair_id: RepairId,
+) -> AppResult<()> {
+    if repair_part.repair_id() != repair_id {
+        return Err(AppError::RepairPartDoesNotBelongToRepair {
+            repair_part_id: repair_part.id(),
+            repair_id,
+        });
+    }
+
+    Ok(())
+}
+
+/// Проверяет, что движение склада относится к указанной складской позиции.
+#[allow(dead_code)]
+pub(crate) fn ensure_stock_movement_belongs_to_part(
+    movement: &StockMovement,
+    part_id: PartId,
+) -> AppResult<()> {
+    if movement.part_id() != part_id {
+        return Err(AppError::StockMovementDoesNotBelongToPart {
+            stock_movement_id: movement.id(),
+            part_id,
         });
     }
 
