@@ -4,6 +4,7 @@ pub mod booking;
 pub mod car;
 pub mod client;
 pub mod part;
+pub mod repair;
 
 use garage_app::AppError;
 use garage_domain::{Currency, PartQuantity};
