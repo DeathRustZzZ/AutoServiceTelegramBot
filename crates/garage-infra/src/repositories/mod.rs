@@ -1,5 +1,6 @@
 //! PostgreSQL-реализации repository ports из application layer.
 
+pub mod booking;
 pub mod car;
 pub mod client;
 pub mod part;
