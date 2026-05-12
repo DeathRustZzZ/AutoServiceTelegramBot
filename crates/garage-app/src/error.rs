@@ -13,7 +13,8 @@
 
 use garage_domain::{
     BookingError, BookingId, CarError, CarId, ClientError, ClientId, MoneyError, PartError, PartId,
-    PartSupplyError, PartSupplyId, PhoneNumberError, RepairError, RepairId,
+    PartSupplyError, PartSupplyId, PaymentError, PaymentId, PhoneNumberError, RepairError,
+    RepairId, RepairPartError, RepairPartId, StockMovementError, StockMovementId,
 };
 use thiserror::Error;
 
@@ -48,6 +49,15 @@ pub enum AppError {
     /// Ремонт не найден.
     #[error("repair not found: {0:?}")]
     RepairNotFound(RepairId),
+    /// Оплата не найдена.
+    #[error("payment not found: {0:?}")]
+    PaymentNotFound(PaymentId),
+    /// Строка использованной в ремонте запчасти не найдена.
+    #[error("repair part not found: {0:?}")]
+    RepairPartNotFound(RepairPartId),
+    /// Движение склада не найдено.
+    #[error("stock movement not found: {0:?}")]
+    StockMovementNotFound(StockMovementId),
 
     /// Автомобиль существует, но принадлежит другому клиенту.
     ///
@@ -98,6 +108,15 @@ pub enum AppError {
     /// Ошибка домена ремонта.
     #[error(transparent)]
     Repair(#[from] RepairError),
+    /// Ошибка домена оплаты.
+    #[error(transparent)]
+    Payment(#[from] PaymentError),
+    /// Ошибка домена использованной в ремонте запчасти.
+    #[error(transparent)]
+    RepairPart(#[from] RepairPartError),
+    /// Ошибка домена движения склада.
+    #[error(transparent)]
+    StockMovement(#[from] StockMovementError),
     /// Ошибка денежных вычислений.
     #[error(transparent)]
     Money(#[from] MoneyError),
