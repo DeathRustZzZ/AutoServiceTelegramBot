@@ -141,4 +141,24 @@ where
         self.cars.save(&car).await?;
         Ok(car)
     }
+
+    /// Архивирует автомобиль без физического удаления.
+    pub async fn archive_car(&self, car_id: CarId, now: DateTime<Utc>) -> AppResult<Car> {
+        let mut car = require_car(&self.cars, car_id).await?;
+        car.archive(now)?;
+        self.cars.save(&car).await?;
+        Ok(car)
+    }
+
+    /// Возвращает автомобиль из архива.
+    pub async fn restore_car_from_archive(
+        &self,
+        car_id: CarId,
+        now: DateTime<Utc>,
+    ) -> AppResult<Car> {
+        let mut car = require_car(&self.cars, car_id).await?;
+        car.restore_from_archive(now)?;
+        self.cars.save(&car).await?;
+        Ok(car)
+    }
 }

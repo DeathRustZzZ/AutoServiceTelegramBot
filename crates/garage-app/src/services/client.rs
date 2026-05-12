@@ -98,4 +98,28 @@ where
         self.clients.save(&client).await?;
         Ok(client)
     }
+
+    /// Архивирует клиента без физического удаления.
+    pub async fn archive_client(
+        &self,
+        client_id: ClientId,
+        now: DateTime<Utc>,
+    ) -> AppResult<Client> {
+        let mut client = require_client(&self.clients, client_id).await?;
+        client.archive(now)?;
+        self.clients.save(&client).await?;
+        Ok(client)
+    }
+
+    /// Возвращает клиента из архива.
+    pub async fn restore_client_from_archive(
+        &self,
+        client_id: ClientId,
+        now: DateTime<Utc>,
+    ) -> AppResult<Client> {
+        let mut client = require_client(&self.clients, client_id).await?;
+        client.restore_from_archive(now)?;
+        self.clients.save(&client).await?;
+        Ok(client)
+    }
 }

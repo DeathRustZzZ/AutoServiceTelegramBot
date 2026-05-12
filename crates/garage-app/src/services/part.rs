@@ -82,4 +82,24 @@ where
     pub async fn list_low_stock(&self) -> AppResult<Vec<Part>> {
         self.parts.list_low_stock().await
     }
+
+    /// Архивирует складскую позицию без физического удаления.
+    pub async fn archive_part(&self, part_id: PartId, now: DateTime<Utc>) -> AppResult<Part> {
+        let mut part = require_part(&self.parts, part_id).await?;
+        part.archive(now)?;
+        self.parts.save(&part).await?;
+        Ok(part)
+    }
+
+    /// Возвращает складскую позицию из архива.
+    pub async fn restore_part_from_archive(
+        &self,
+        part_id: PartId,
+        now: DateTime<Utc>,
+    ) -> AppResult<Part> {
+        let mut part = require_part(&self.parts, part_id).await?;
+        part.restore_from_archive(now)?;
+        self.parts.save(&part).await?;
+        Ok(part)
+    }
 }

@@ -473,6 +473,60 @@ async fn client_service_creates_and_updates_client() {
 }
 
 #[tokio::test]
+async fn archive_client_sets_status_archived_and_saves_client() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let service = ClientService::new(store.clone());
+
+    let archived = service.archive_client(client.id(), ts(12)).await.unwrap();
+
+    assert!(archived.is_archived());
+    assert_eq!(*archived.updated_at(), ts(12));
+    assert_eq!(
+        ClientRepository::get(&store, client.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        archived
+    );
+}
+
+#[tokio::test]
+async fn restore_client_from_archive_sets_status_active_and_saves_client() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let service = ClientService::new(store.clone());
+
+    service.archive_client(client.id(), ts(12)).await.unwrap();
+    let restored = service
+        .restore_client_from_archive(client.id(), ts(13))
+        .await
+        .unwrap();
+
+    assert!(restored.is_active());
+    assert_eq!(*restored.updated_at(), ts(13));
+    assert_eq!(
+        ClientRepository::get(&store, client.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        restored
+    );
+}
+
+#[tokio::test]
+async fn archive_client_returns_client_not_found() {
+    let store = store();
+    let service = ClientService::new(store.clone());
+    let missing_client = ClientId::from_uuid(Uuid::from_u128(920));
+
+    let result = service.archive_client(missing_client, ts(12)).await;
+
+    assert!(matches!(result, Err(AppError::ClientNotFound(id)) if id == missing_client));
+    assert!(store.clients.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn car_service_checks_client_and_lists_client_cars() {
     let store = store();
     let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
@@ -512,6 +566,56 @@ async fn car_service_checks_client_and_lists_client_cars() {
     let missing_client = ClientId::from_uuid(Uuid::from_u128(1));
     let result = car_service.list_client_cars(missing_client).await;
     assert!(matches!(result, Err(AppError::ClientNotFound(id)) if id == missing_client));
+}
+
+#[tokio::test]
+async fn archive_car_sets_status_archived_and_saves_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store.clone());
+
+    let archived = service.archive_car(car.id(), ts(12)).await.unwrap();
+
+    assert!(archived.is_archived());
+    assert_eq!(*archived.updated_at(), ts(12));
+    assert_eq!(
+        CarRepository::get(&store, car.id()).await.unwrap().unwrap(),
+        archived
+    );
+}
+
+#[tokio::test]
+async fn restore_car_from_archive_sets_status_active_and_saves_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = CarService::new(store.clone(), store.clone());
+
+    service.archive_car(car.id(), ts(12)).await.unwrap();
+    let restored = service
+        .restore_car_from_archive(car.id(), ts(13))
+        .await
+        .unwrap();
+
+    assert!(restored.is_active());
+    assert_eq!(*restored.updated_at(), ts(13));
+    assert_eq!(
+        CarRepository::get(&store, car.id()).await.unwrap().unwrap(),
+        restored
+    );
+}
+
+#[tokio::test]
+async fn archive_car_returns_car_not_found() {
+    let store = store();
+    let service = CarService::new(store.clone(), store.clone());
+    let missing_car = CarId::from_uuid(Uuid::from_u128(921));
+
+    let result = service.archive_car(missing_car, ts(12)).await;
+
+    assert!(matches!(result, Err(AppError::CarNotFound(id)) if id == missing_car));
+    assert!(store.cars.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -915,6 +1019,60 @@ async fn part_service_creates_sets_stock_searches_and_lists_low_stock() {
         .unwrap();
     assert_eq!(updated.quantity().value(), 5);
     assert!(service.list_low_stock().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn archive_part_sets_status_archived_and_saves_part() {
+    let store = store();
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let service = PartService::new(store.clone());
+
+    let archived = service.archive_part(part.id(), ts(12)).await.unwrap();
+
+    assert!(archived.is_archived());
+    assert_eq!(*archived.updated_at(), ts(12));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        archived
+    );
+}
+
+#[tokio::test]
+async fn restore_part_from_archive_sets_status_active_and_saves_part() {
+    let store = store();
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let service = PartService::new(store.clone());
+
+    service.archive_part(part.id(), ts(12)).await.unwrap();
+    let restored = service
+        .restore_part_from_archive(part.id(), ts(13))
+        .await
+        .unwrap();
+
+    assert!(restored.is_active());
+    assert_eq!(*restored.updated_at(), ts(13));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        restored
+    );
+}
+
+#[tokio::test]
+async fn archive_part_returns_part_not_found() {
+    let store = store();
+    let service = PartService::new(store.clone());
+    let missing_part = PartId::from_uuid(Uuid::from_u128(922));
+
+    let result = service.archive_part(missing_part, ts(12)).await;
+
+    assert!(matches!(result, Err(AppError::PartNotFound(id)) if id == missing_part));
+    assert!(store.parts.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
