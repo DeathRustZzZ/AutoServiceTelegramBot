@@ -69,7 +69,7 @@ impl std::fmt::Display for BookingStatus {
 /// Внутренняя строка закрыта, чтобы нельзя было создать пустую или слишком
 /// длинную причину в обход `parse`. После успешного парсинга доменная сущность
 /// может полагаться на два инварианта: причина не пустая и не длиннее
-/// `MAX_BOOKING_REASON_LEN`.
+/// `MAX_BOOKING_REASON_LEN`.8
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BookingReason(String);
 
