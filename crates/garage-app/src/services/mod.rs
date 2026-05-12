@@ -10,6 +10,7 @@ mod car;
 mod client;
 mod part;
 mod part_supply;
+mod payment;
 mod repair;
 mod statistics;
 
@@ -18,6 +19,7 @@ pub use car::*;
 pub use client::*;
 pub use part::*;
 pub use part_supply::*;
+pub use payment::*;
 pub use repair::*;
 pub use statistics::*;
 

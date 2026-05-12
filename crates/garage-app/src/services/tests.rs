@@ -18,6 +18,7 @@ struct Store {
     parts: Mutex<HashMap<PartId, Part>>,
     supplies: Mutex<HashMap<PartSupplyId, PartSupply>>,
     repairs: Mutex<HashMap<RepairId, Repair>>,
+    payments: Mutex<HashMap<PaymentId, Payment>>,
 }
 
 #[async_trait]
@@ -237,6 +238,32 @@ impl RepairRepository for Store {
     }
 }
 
+#[async_trait]
+impl PaymentRepository for Store {
+    async fn get(&self, id: PaymentId) -> AppResult<Option<Payment>> {
+        Ok(self.payments.lock().unwrap().get(&id).cloned())
+    }
+
+    async fn save(&self, payment: &Payment) -> AppResult<()> {
+        self.payments
+            .lock()
+            .unwrap()
+            .insert(payment.id(), payment.clone());
+        Ok(())
+    }
+
+    async fn list_by_repair(&self, repair_id: RepairId) -> AppResult<Vec<Payment>> {
+        Ok(self
+            .payments
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|payment| payment.repair_id() == repair_id)
+            .cloned()
+            .collect())
+    }
+}
+
 fn store() -> Arc<Store> {
     Arc::new(Store::default())
 }
@@ -275,6 +302,10 @@ fn sku(value: &str) -> Option<PartSku> {
 
 fn description(value: &str) -> RepairDescription {
     RepairDescription::parse(value).unwrap()
+}
+
+fn payment_comment(value: &str) -> PaymentComment {
+    PaymentComment::parse(value).unwrap().unwrap()
 }
 
 fn document_photo(value: &str) -> CarDocumentPhotoRef {
@@ -963,6 +994,246 @@ async fn repair_service_cancels_repair_and_rejects_later_payment() {
         .record_payment(repair.id(), Money::byn_minor(1000).unwrap(), ts(11))
         .await;
     assert!(matches!(result, Err(AppError::Repair(_))));
+}
+
+#[tokio::test]
+async fn record_payment_saves_repair_and_payment() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair_service =
+        RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let repair = repair_service
+        .start_repair(StartRepairCommand {
+            client_id: client.id(),
+            car_id: car.id(),
+            booking_id: None,
+            description: description("Ремонт"),
+            labor_price: Money::byn_minor(10_000).unwrap(),
+            parts_price: Money::byn_minor(5_000).unwrap(),
+            parts_cost: Money::byn_minor(3_000).unwrap(),
+            notes: None,
+            now: ts(9),
+        })
+        .await
+        .unwrap();
+    let service = PaymentService::new(store.clone(), store.clone());
+
+    let payment = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(4_000).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: Some(payment_comment("Предоплата")),
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(payment.repair_id(), repair.id());
+    assert_eq!(payment.amount(), Money::byn_minor(4_000).unwrap());
+    assert_eq!(payment.method(), PaymentMethod::Cash);
+    assert_eq!(payment.comment().unwrap().as_str(), "Предоплата");
+    assert_eq!(
+        PaymentRepository::get(&store, payment.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        payment
+    );
+    let saved_repair = RepairRepository::get(&store, repair.id())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved_repair.paid_amount(), Money::byn_minor(4_000).unwrap());
+}
+
+#[tokio::test]
+async fn record_payment_returns_repair_not_found() {
+    let store = store();
+    let service = PaymentService::new(store.clone(), store);
+    let missing_repair = RepairId::from_uuid(Uuid::from_u128(900));
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: missing_repair,
+            amount: Money::byn_minor(1_000).unwrap(),
+            method: PaymentMethod::Card,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::RepairNotFound(id)) if id == missing_repair));
+}
+
+#[tokio::test]
+async fn record_payment_rejects_payment_exceeding_total() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let before = repair.clone();
+    let service = PaymentService::new(store.clone(), store.clone());
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(1_001).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::Repair(_))));
+    assert!(store.payments.lock().unwrap().is_empty());
+    assert_eq!(
+        RepairRepository::get(&store, repair.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        before
+    );
+}
+
+#[tokio::test]
+async fn record_payment_rejects_zero_payment() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let before = repair.clone();
+    let service = PaymentService::new(store.clone(), store.clone());
+
+    let result = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::zero(Currency::Byn),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::Repair(_))));
+    assert!(store.payments.lock().unwrap().is_empty());
+    assert_eq!(
+        RepairRepository::get(&store, repair.id())
+            .await
+            .unwrap()
+            .unwrap(),
+        before
+    );
+}
+
+#[tokio::test]
+async fn list_repair_payments_requires_existing_repair() {
+    let store = store();
+    let service = PaymentService::new(store.clone(), store);
+    let missing_repair = RepairId::from_uuid(Uuid::from_u128(901));
+
+    let result = service.list_repair_payments(missing_repair).await;
+
+    assert!(matches!(result, Err(AppError::RepairNotFound(id)) if id == missing_repair));
+}
+
+#[tokio::test]
+async fn list_repair_payments_returns_payments_for_repair() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(StartRepairCommand {
+            client_id: client.id(),
+            car_id: car.id(),
+            booking_id: None,
+            description: description("Ремонт"),
+            labor_price: Money::byn_minor(10_000).unwrap(),
+            parts_price: Money::zero(Currency::Byn),
+            parts_cost: Money::zero(Currency::Byn),
+            notes: None,
+            now: ts(9),
+        })
+        .await
+        .unwrap();
+    let service = PaymentService::new(store.clone(), store.clone());
+    let first = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(4_000).unwrap(),
+            method: PaymentMethod::Cash,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+    let second = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(6_000).unwrap(),
+            method: PaymentMethod::BankTransfer,
+            comment: None,
+            paid_at: ts(11),
+            now: ts(11),
+        })
+        .await
+        .unwrap();
+
+    let payments = service.list_repair_payments(repair.id()).await.unwrap();
+
+    assert_eq!(payments.len(), 2);
+    assert!(payments.contains(&first));
+    assert!(payments.contains(&second));
+}
+
+#[tokio::test]
+async fn get_payment_returns_payment() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service = PaymentService::new(store.clone(), store.clone());
+    let payment = service
+        .record_payment(RecordPaymentCommand {
+            repair_id: repair.id(),
+            amount: Money::byn_minor(500).unwrap(),
+            method: PaymentMethod::Other,
+            comment: None,
+            paid_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    let found = service.get_payment(payment.id()).await.unwrap();
+
+    assert_eq!(found, payment);
+}
+
+#[tokio::test]
+async fn get_payment_returns_payment_not_found() {
+    let store = store();
+    let service = PaymentService::new(store.clone(), store);
+    let missing_payment = PaymentId::from_uuid(Uuid::from_u128(902));
+
+    let result = service.get_payment(missing_payment).await;
+
+    assert!(matches!(result, Err(AppError::PaymentNotFound(id)) if id == missing_payment));
 }
 
 #[tokio::test]
