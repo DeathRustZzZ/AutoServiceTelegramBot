@@ -823,6 +823,81 @@ async fn booking_service_schedules_lists_and_transitions_bookings() {
 }
 
 #[tokio::test]
+async fn schedule_booking_rejects_archived_client() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    ClientService::new(store.clone())
+        .archive_client(client.id(), ts(10))
+        .await
+        .unwrap();
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            ts(12),
+            reason("Диагностика"),
+            None,
+            ts(11),
+        )
+        .await;
+
+    assert!(matches!(result, Err(AppError::ClientArchived(id)) if id == client.id()));
+    assert!(store.bookings.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn schedule_booking_rejects_archived_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    CarService::new(store.clone(), store.clone())
+        .archive_car(car.id(), ts(10))
+        .await
+        .unwrap();
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            ts(12),
+            reason("Диагностика"),
+            None,
+            ts(11),
+        )
+        .await;
+
+    assert!(matches!(result, Err(AppError::CarArchived(id)) if id == car.id()));
+    assert!(store.bookings.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn schedule_booking_accepts_active_client_and_active_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = BookingService::new(store.clone(), store.clone(), store.clone());
+
+    let booking = service
+        .schedule_booking(
+            client.id(),
+            car.id(),
+            ts(12),
+            reason("Диагностика"),
+            None,
+            ts(11),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(booking.client_id(), client.id());
+    assert_eq!(booking.car_id(), car.id());
+}
+
+#[tokio::test]
 async fn schedule_booking_fails_when_car_does_not_belong_to_client() {
     let store = store();
     let first = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
@@ -1136,6 +1211,60 @@ async fn repair_service_starts_records_payment_and_completes_repair() {
     let repair = service.complete_repair(repair.id(), ts(11)).await.unwrap();
     assert_eq!(repair.status(), RepairStatus::Completed);
     assert_eq!(repair.actual_profit().unwrap().amount_minor(), 6000);
+}
+
+#[tokio::test]
+async fn start_repair_rejects_archived_client() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    ClientService::new(store.clone())
+        .archive_client(client.id(), ts(10))
+        .await
+        .unwrap();
+    let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await;
+
+    assert!(matches!(result, Err(AppError::ClientArchived(id)) if id == client.id()));
+    assert!(store.repairs.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn start_repair_rejects_archived_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    CarService::new(store.clone(), store.clone())
+        .archive_car(car.id(), ts(10))
+        .await
+        .unwrap();
+    let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await;
+
+    assert!(matches!(result, Err(AppError::CarArchived(id)) if id == car.id()));
+    assert!(store.repairs.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn start_repair_accepts_active_client_and_active_car() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let service = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let repair = service
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+
+    assert_eq!(repair.client_id(), client.id());
+    assert_eq!(repair.car_id(), car.id());
 }
 
 #[tokio::test]
@@ -1499,6 +1628,87 @@ async fn use_part_in_repair_saves_part_repair_part_and_stock_movement() {
     assert_eq!(movements[0].movement_type(), StockMovementType::Out);
     assert_eq!(movements[0].reason(), StockMovementReason::RepairUsage);
     assert_eq!(movements[0].quantity(), PartQuantity::new(2));
+}
+
+#[tokio::test]
+async fn use_part_in_repair_rejects_archived_part() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    PartService::new(store.clone())
+        .archive_part(part.id(), ts(10))
+        .await
+        .unwrap();
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(11),
+            now: ts(11),
+        })
+        .await;
+
+    assert!(matches!(result, Err(AppError::PartArchived(id)) if id == part.id()));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(10)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_accepts_active_part() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let repair_part = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(11),
+            now: ts(11),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(repair_part.part_id(), part.id());
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(8)
+    );
 }
 
 #[tokio::test]

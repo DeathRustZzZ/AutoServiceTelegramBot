@@ -139,6 +139,33 @@ pub(crate) fn ensure_car_belongs_to_client(car: &Car, client_id: ClientId) -> Ap
     Ok(())
 }
 
+/// Проверяет, что клиент доступен для новых активных сценариев.
+pub(crate) fn ensure_client_active(client: &Client) -> AppResult<()> {
+    if client.is_archived() {
+        return Err(AppError::ClientArchived(client.id()));
+    }
+
+    Ok(())
+}
+
+/// Проверяет, что автомобиль доступен для новых активных сценариев.
+pub(crate) fn ensure_car_active(car: &Car) -> AppResult<()> {
+    if car.is_archived() {
+        return Err(AppError::CarArchived(car.id()));
+    }
+
+    Ok(())
+}
+
+/// Проверяет, что складская позиция доступна для новых активных сценариев.
+pub(crate) fn ensure_part_active(part: &Part) -> AppResult<()> {
+    if part.is_archived() {
+        return Err(AppError::PartArchived(part.id()));
+    }
+
+    Ok(())
+}
+
 /// Проверяет, что строка использованной запчасти относится к указанному ремонту.
 #[allow(dead_code)]
 pub(crate) fn ensure_repair_part_belongs_to_repair(

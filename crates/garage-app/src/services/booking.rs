@@ -10,7 +10,10 @@ use garage_domain::{
 
 use crate::{AppResult, BookingRepository, CarRepository, ClientRepository};
 
-use super::common::{ensure_car_belongs_to_client, require_booking, require_car, require_client};
+use super::common::{
+    ensure_car_active, ensure_car_belongs_to_client, ensure_client_active, require_booking,
+    require_car, require_client,
+};
 
 /// Read model для экрана/сообщения с деталями записи.
 ///
@@ -51,8 +54,8 @@ where
     /// Создает новую запись для автомобиля клиента.
     ///
     /// Алгоритм:
-    /// 1. Проверяем существование клиента.
-    /// 2. Загружаем автомобиль.
+    /// 1. Проверяем существование и активность клиента.
+    /// 2. Загружаем автомобиль и проверяем его активность.
     /// 3. Проверяем, что автомобиль принадлежит клиенту.
     /// 4. Создаем `Booking` в статусе `Scheduled`.
     /// 5. Сохраняем запись.
@@ -65,8 +68,10 @@ where
         notes: Option<BookingNotes>,
         now: DateTime<Utc>,
     ) -> AppResult<Booking> {
-        require_client(&self.clients, client_id).await?;
+        let client = require_client(&self.clients, client_id).await?;
+        ensure_client_active(&client)?;
         let car = require_car(&self.cars, car_id).await?;
+        ensure_car_active(&car)?;
         ensure_car_belongs_to_client(&car, client_id)?;
 
         let booking = Booking::new(

@@ -20,7 +20,7 @@ use crate::{
     StockMovementRepository,
 };
 
-use super::common::{require_part, require_repair, require_repair_part};
+use super::common::{ensure_part_active, require_part, require_repair, require_repair_part};
 
 /// Команда списания запчасти в ремонт.
 ///
@@ -85,6 +85,7 @@ where
         }
 
         let mut part = require_part(&self.parts, command.part_id).await?;
+        ensure_part_active(&part)?;
         part.decrease_stock(command.quantity, command.now)?;
 
         let repair_part = RepairPart::new(

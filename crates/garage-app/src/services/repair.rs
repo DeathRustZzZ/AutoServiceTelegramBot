@@ -12,8 +12,8 @@ use garage_domain::{
 use crate::{AppResult, BookingRepository, CarRepository, ClientRepository, RepairRepository};
 
 use super::common::{
-    ensure_booking_belongs_to_client_and_car, ensure_car_belongs_to_client, require_booking,
-    require_car, require_client, require_repair,
+    ensure_booking_belongs_to_client_and_car, ensure_car_active, ensure_car_belongs_to_client,
+    ensure_client_active, require_booking, require_car, require_client, require_repair,
 };
 
 /// Команда запуска ремонта.
@@ -61,16 +61,18 @@ where
     /// Запускает ремонт.
     ///
     /// Алгоритм:
-    /// 1. Проверяем существование клиента.
-    /// 2. Загружаем автомобиль и проверяем принадлежность клиенту.
+    /// 1. Проверяем существование и активность клиента.
+    /// 2. Загружаем автомобиль, проверяем активность и принадлежность клиенту.
     /// 3. Если указан booking, проверяем, что он относится к той же паре
     ///    `client_id + car_id`.
     /// 4. Создаем `Repair`; валюты, цены, себестоимость и начальный статус
     ///    проверяются доменом.
     /// 5. Сохраняем ремонт.
     pub async fn start_repair(&self, command: StartRepairCommand) -> AppResult<Repair> {
-        require_client(&self.clients, command.client_id).await?;
+        let client = require_client(&self.clients, command.client_id).await?;
+        ensure_client_active(&client)?;
         let car = require_car(&self.cars, command.car_id).await?;
+        ensure_car_active(&car)?;
         ensure_car_belongs_to_client(&car, command.client_id)?;
 
         if let Some(booking_id) = command.booking_id {

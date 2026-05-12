@@ -58,6 +58,15 @@ pub enum AppError {
     /// Движение склада не найдено.
     #[error("stock movement not found: {0:?}")]
     StockMovementNotFound(StockMovementId),
+    /// Клиент находится в архиве и не может использоваться в новом активном сценарии.
+    #[error("client is archived: {0:?}")]
+    ClientArchived(ClientId),
+    /// Автомобиль находится в архиве и не может использоваться в новом активном сценарии.
+    #[error("car is archived: {0:?}")]
+    CarArchived(CarId),
+    /// Складская позиция находится в архиве и не может использоваться в новом активном сценарии.
+    #[error("part is archived: {0:?}")]
+    PartArchived(PartId),
 
     /// Автомобиль существует, но принадлежит другому клиенту.
     ///
