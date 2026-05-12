@@ -11,7 +11,7 @@
 
 use chrono::{DateTime, Utc};
 use garage_domain::{
-    Money, PartId, PartQuantity, RepairId, RepairPart, RepairPartId, StockMovement,
+    Money, Part, PartId, PartQuantity, RepairId, RepairPart, RepairPartId, StockMovement,
     StockMovementComment, StockMovementId, StockMovementReason, StockMovementType,
 };
 
@@ -35,6 +35,18 @@ pub struct UsePartInRepairCommand {
     pub comment: Option<StockMovementComment>,
     pub occurred_at: DateTime<Utc>,
     pub now: DateTime<Utc>,
+}
+
+/// Результат списания запчасти в ремонт.
+///
+/// Это application-level result model для UI: он возвращает созданные
+/// исторические записи и состояние склада после списания.
+pub struct UsePartInRepairResult {
+    pub repair_part: RepairPart,
+    pub stock_movement: StockMovement,
+    pub part: Part,
+    pub is_low_stock: bool,
+    pub is_out_of_stock: bool,
 }
 
 /// Application service для запчастей, использованных в ремонте.
@@ -76,7 +88,7 @@ where
     pub async fn use_part_in_repair(
         &self,
         command: UsePartInRepairCommand,
-    ) -> AppResult<RepairPart> {
+    ) -> AppResult<UsePartInRepairResult> {
         let repair = require_repair(&self.repairs, command.repair_id).await?;
         if repair.is_cancelled() {
             return Err(AppError::CannotUsePartForCancelledRepair {
@@ -113,7 +125,13 @@ where
         self.repair_parts.save(&repair_part).await?;
         self.stock_movements.save(&movement).await?;
 
-        Ok(repair_part)
+        Ok(UsePartInRepairResult {
+            repair_part,
+            stock_movement: movement,
+            is_low_stock: part.is_low_stock(),
+            is_out_of_stock: part.is_out_of_stock(),
+            part,
+        })
     }
 
     /// Возвращает запчасти, использованные в ремонте.

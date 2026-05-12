@@ -417,12 +417,22 @@ async fn create_car_fixture(
 }
 
 async fn create_part_fixture(store: Arc<Store>, name: &str, sku: &str, quantity: u32) -> Part {
+    create_part_fixture_with_min(store, name, sku, quantity, 2).await
+}
+
+async fn create_part_fixture_with_min(
+    store: Arc<Store>,
+    name: &str,
+    sku: &str,
+    quantity: u32,
+    min_quantity: u32,
+) -> Part {
     PartService::new(store)
         .create_part(
             part_name(name),
             self::sku(sku),
             PartQuantity::new(quantity),
-            PartQuantity::new(2),
+            PartQuantity::new(min_quantity),
             Money::byn_minor(1000).unwrap(),
             None,
             ts(8),
@@ -1582,7 +1592,113 @@ async fn get_payment_returns_payment_not_found() {
 }
 
 #[tokio::test]
-async fn use_part_in_repair_saves_part_repair_part_and_stock_movement() {
+async fn use_part_in_repair_returns_result_with_updated_part_and_movement() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture_with_min(store.clone(), "Фильтр", "flt-001", 10, 3).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: Some(stock_comment("Списано на ремонт BMW")),
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(result.part.quantity(), PartQuantity::new(8));
+    assert_eq!(result.repair_part.quantity(), PartQuantity::new(2));
+    assert_eq!(result.stock_movement.quantity(), PartQuantity::new(2));
+    assert_eq!(
+        result.stock_movement.movement_type(),
+        StockMovementType::Out
+    );
+    assert_eq!(
+        result.stock_movement.reason(),
+        StockMovementReason::RepairUsage
+    );
+    assert!(!result.is_low_stock);
+    assert!(!result.is_out_of_stock);
+}
+
+#[tokio::test]
+async fn use_part_in_repair_marks_low_stock() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture_with_min(store.clone(), "Фильтр", "flt-001", 5, 3).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(result.part.quantity(), PartQuantity::new(3));
+    assert!(result.is_low_stock);
+    assert!(!result.is_out_of_stock);
+}
+
+#[tokio::test]
+async fn use_part_in_repair_marks_out_of_stock() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture_with_min(store.clone(), "Фильтр", "flt-001", 2, 3).await;
+    let repair = RepairService::new(store.clone(), store.clone(), store.clone(), store.clone())
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(10),
+            now: ts(10),
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(result.part.quantity(), PartQuantity::zero());
+    assert!(result.is_low_stock);
+    assert!(result.is_out_of_stock);
+}
+
+#[tokio::test]
+async fn use_part_in_repair_saves_updated_part_repair_part_and_stock_movement() {
     let store = store();
     let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
     let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
@@ -1594,7 +1710,7 @@ async fn use_part_in_repair_saves_part_repair_part_and_stock_movement() {
     let service =
         RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
-    let repair_part = service
+    let result = service
         .use_part_in_repair(UsePartInRepairCommand {
             repair_id: repair.id(),
             part_id: part.id(),
@@ -1614,20 +1730,18 @@ async fn use_part_in_repair_saves_part_repair_part_and_stock_movement() {
         .unwrap();
     assert_eq!(saved_part.quantity(), PartQuantity::new(8));
     assert_eq!(
-        RepairPartRepository::get(&store, repair_part.id())
+        RepairPartRepository::get(&store, result.repair_part.id())
             .await
             .unwrap()
             .unwrap(),
-        repair_part
+        result.repair_part
     );
 
     let movements = StockMovementRepository::list_by_part(&store, part.id())
         .await
         .unwrap();
     assert_eq!(movements.len(), 1);
-    assert_eq!(movements[0].movement_type(), StockMovementType::Out);
-    assert_eq!(movements[0].reason(), StockMovementReason::RepairUsage);
-    assert_eq!(movements[0].quantity(), PartQuantity::new(2));
+    assert_eq!(movements[0], result.stock_movement);
 }
 
 #[tokio::test]
@@ -1686,7 +1800,7 @@ async fn use_part_in_repair_accepts_active_part() {
     let service =
         RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
 
-    let repair_part = service
+    let result = service
         .use_part_in_repair(UsePartInRepairCommand {
             repair_id: repair.id(),
             part_id: part.id(),
@@ -1700,7 +1814,7 @@ async fn use_part_in_repair_accepts_active_part() {
         .await
         .unwrap();
 
-    assert_eq!(repair_part.part_id(), part.id());
+    assert_eq!(result.repair_part.part_id(), part.id());
     assert_eq!(
         PartRepository::get(&store, part.id())
             .await
@@ -1926,7 +2040,7 @@ async fn list_repair_parts_returns_parts_for_repair() {
         .unwrap();
     let service =
         RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
-    let repair_part = service
+    let result = service
         .use_part_in_repair(UsePartInRepairCommand {
             repair_id: repair.id(),
             part_id: part.id(),
@@ -1942,7 +2056,7 @@ async fn list_repair_parts_returns_parts_for_repair() {
 
     let repair_parts = service.list_repair_parts(repair.id()).await.unwrap();
 
-    assert_eq!(repair_parts, vec![repair_part]);
+    assert_eq!(repair_parts, vec![result.repair_part]);
 }
 
 #[tokio::test]
@@ -1957,7 +2071,7 @@ async fn get_repair_part_returns_repair_part() {
         .unwrap();
     let service =
         RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
-    let repair_part = service
+    let result = service
         .use_part_in_repair(UsePartInRepairCommand {
             repair_id: repair.id(),
             part_id: part.id(),
@@ -1971,9 +2085,12 @@ async fn get_repair_part_returns_repair_part() {
         .await
         .unwrap();
 
-    let found = service.get_repair_part(repair_part.id()).await.unwrap();
+    let found = service
+        .get_repair_part(result.repair_part.id())
+        .await
+        .unwrap();
 
-    assert_eq!(found, repair_part);
+    assert_eq!(found, result.repair_part);
 }
 
 #[tokio::test]
