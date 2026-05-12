@@ -4,6 +4,7 @@ pub mod booking;
 pub mod car;
 pub mod client;
 pub mod part;
+pub mod payment;
 pub mod repair;
 
 use garage_app::AppError;
