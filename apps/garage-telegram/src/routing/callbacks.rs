@@ -163,6 +163,91 @@ pub async fn handle(
         };
     }
 
+    if let Some(id) = data.strip_prefix("booking:open:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::bookings::show_card(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::BookingId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("booking:client:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::bookings::select_client(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::ClientId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("booking:car:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::bookings::select_car(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::CarId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("booking:complete:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::bookings::complete(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::BookingId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("booking:cancel:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::bookings::cancel(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::BookingId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
     match data {
         "nav:main" => {
             let mut session = session;
@@ -180,6 +265,7 @@ pub async fn handle(
             .await
         }
         "nav:clients" => handlers::clients::show_menu(&bot, &dialogue, chat_id, session).await,
+        "nav:bookings" => handlers::bookings::show_menu(&bot, &dialogue, chat_id, session).await,
         "client:add" => handlers::clients::begin_add(&bot, &dialogue, chat_id, session).await,
         "client:search" => handlers::clients::begin_search(&bot, &dialogue, chat_id, session).await,
         "client:confirm" => {
@@ -188,18 +274,15 @@ pub async fn handle(
         "car:confirm" => {
             handlers::cars::confirm(&bot, &dialogue, chat_id, container, session).await
         }
-        "nav:bookings" => {
-            render_screen(
-                &bot,
-                &dialogue,
-                chat_id,
-                session,
-                Screen::new(
-                    messages::main::not_implemented("Записи"),
-                    crate::keyboards::main::main_menu(),
-                ),
-            )
-            .await
+        "booking:today" => {
+            handlers::bookings::show_today(&bot, &dialogue, chat_id, container, session).await
+        }
+        "booking:tomorrow" => {
+            handlers::bookings::show_tomorrow(&bot, &dialogue, chat_id, container, session).await
+        }
+        "booking:add" => handlers::bookings::begin_add(&bot, &dialogue, chat_id, session).await,
+        "booking:confirm" => {
+            handlers::bookings::confirm(&bot, &dialogue, chat_id, container, session).await
         }
         "nav:cars" => {
             render_screen(
@@ -255,4 +338,23 @@ pub async fn handle(
         }
         _ => Ok(()),
     }
+}
+
+async fn invalid_callback(
+    bot: &Bot,
+    dialogue: &UserDialogue,
+    chat_id: ChatId,
+    session: SessionData,
+) -> HandlerResult {
+    render_screen(
+        bot,
+        dialogue,
+        chat_id,
+        session,
+        Screen::new(
+            messages::errors::invalid_callback(),
+            crate::keyboards::main::main_menu(),
+        ),
+    )
+    .await
 }

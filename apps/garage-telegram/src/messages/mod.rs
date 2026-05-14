@@ -1,3 +1,4 @@
+pub mod bookings;
 pub mod cars;
 pub mod clients;
 pub mod errors;

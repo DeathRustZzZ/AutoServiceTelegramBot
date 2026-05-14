@@ -10,6 +10,7 @@ pub async fn run(container: AppContainer) {
     let pool = container.pool();
     let clients = container.clients();
     let cars = container.cars();
+    let bookings = container.bookings();
 
     Dispatcher::builder(bot, routing::schema())
         .dependencies(dptree::deps![
@@ -17,6 +18,7 @@ pub async fn run(container: AppContainer) {
             pool,
             clients,
             cars,
+            bookings,
             container
         ])
         .enable_ctrlc_handler()

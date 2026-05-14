@@ -2,6 +2,7 @@
 pub struct Config {
     pub bot_token: String,
     pub database_url: String,
+    pub timezone_offset_hours: i32,
 }
 
 impl Config {
@@ -12,10 +13,16 @@ impl Config {
             .expect("TELEGRAM_BOT_TOKEN, BOT_TOKEN or TELOXIDE_TOKEN must be set");
         let database_url =
             std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for garage-telegram");
+        let timezone_offset_hours = std::env::var("APP_TIMEZONE_OFFSET_HOURS")
+            .or_else(|_| std::env::var("LOCAL_TIMEZONE_OFFSET_HOURS"))
+            .ok()
+            .and_then(|value| value.parse::<i32>().ok())
+            .unwrap_or(0);
 
         Self {
             bot_token,
             database_url,
+            timezone_offset_hours,
         }
     }
 }

@@ -4,6 +4,7 @@ pub enum DialogState {
     Idle,
     AddClient(AddClientStep),
     AddCar(AddCarStep),
+    AddBooking(AddBookingStep),
     SearchClient,
 }
 
@@ -22,5 +23,15 @@ pub enum AddCarStep {
     AwaitingYear,
     AwaitingLicensePlate,
     AwaitingVin,
+    Confirm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddBookingStep {
+    AwaitingClientSearch,
+    AwaitingCarSelection,
+    AwaitingDateTime,
+    AwaitingReason,
+    AwaitingNotes,
     Confirm,
 }

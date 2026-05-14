@@ -28,19 +28,25 @@ pub fn car_not_found() -> &'static str {
     "Автомобиль не найден. Возможно, он был удалён или архивирован."
 }
 
+pub fn booking_not_found() -> &'static str {
+    "Запись не найдена. Возможно, она была удалена или устарела."
+}
+
 pub fn clients_load_failed() -> &'static str {
-    "Не удалось загрузить клиентов. Попробуйте позже."
+    "Не удалось загрузить или сохранить данные. Попробуйте позже."
 }
 
 pub fn app_error(error: &AppError) -> String {
     match error {
         AppError::ClientNotFound(_) => client_not_found().to_string(),
         AppError::CarNotFound(_) => car_not_found().to_string(),
+        AppError::BookingNotFound(_) => booking_not_found().to_string(),
         AppError::CarDoesNotBelongToClient { .. } => {
             "Этот автомобиль не принадлежит выбранному клиенту.".to_string()
         }
         AppError::Client(_) => "Проверьте имя или заметку клиента.".to_string(),
         AppError::Car(error) => car_error(error),
+        AppError::Booking(_) => "Проверьте причину обращения или заметку.".to_string(),
         AppError::PhoneNumber(_) => {
             "Проверьте телефон. Используйте корректный номер, например +375291234567.".to_string()
         }

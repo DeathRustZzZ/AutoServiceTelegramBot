@@ -26,6 +26,10 @@ pub async fn handle(
         return handlers::clients::show_menu(&bot, &dialogue, msg.chat.id, session).await;
     }
 
+    if text.as_str() == reply::NAV_BOOKINGS {
+        return handlers::bookings::show_menu(&bot, &dialogue, msg.chat.id, session).await;
+    }
+
     match session.dialog.clone() {
         DialogState::AddClient(step) => {
             return handlers::clients::handle_add_text(bot, dialogue, msg, session, step, text)
@@ -39,6 +43,12 @@ pub async fn handle(
         }
         DialogState::AddCar(step) => {
             return handlers::cars::handle_add_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
+        DialogState::AddBooking(step) => {
+            return handlers::bookings::handle_add_text(
                 bot, dialogue, msg, container, session, step, text,
             )
             .await;
