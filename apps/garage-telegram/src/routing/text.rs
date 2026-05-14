@@ -5,6 +5,7 @@ use crate::handlers;
 use crate::keyboards::reply;
 use crate::messages;
 use crate::state::{DialogState, HandlerResult, SessionData, UserDialogue};
+use crate::ui::cleanup::delete_user_message_silent;
 use crate::ui::render::{render_screen, Screen};
 
 pub async fn handle(
@@ -21,6 +22,11 @@ pub async fn handle(
     let Some(text) = msg.text().map(str::trim).map(str::to_string) else {
         return Ok(());
     };
+    let should_cleanup = should_delete_user_message(&text, &session.dialog);
+
+    if should_cleanup {
+        delete_user_message_silent(&bot, &msg).await;
+    }
 
     if text.as_str() == "/start" {
         return handlers::start::start(bot, dialogue, msg, session).await;
@@ -140,6 +146,24 @@ pub async fn handle(
     if let Some(screen) = screen {
         render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
     } else {
-        handlers::errors::unknown_text(bot, msg).await
+        if !should_cleanup {
+            delete_user_message_silent(&bot, &msg).await;
+        }
+        handlers::errors::unknown_text(&bot, &dialogue, msg.chat.id, session).await
     }
+}
+
+fn should_delete_user_message(text: &str, dialog: &DialogState) -> bool {
+    matches!(text, "/start" | "/cancel")
+        || matches!(
+            text,
+            reply::NAV_CLIENTS
+                | reply::NAV_BOOKINGS
+                | reply::NAV_CARS
+                | reply::NAV_STOCK
+                | reply::NAV_LOW_STOCK
+                | reply::NAV_REPAIRS
+                | reply::NAV_SEARCH
+        )
+        || !matches!(dialog, DialogState::Idle)
 }

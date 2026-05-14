@@ -11,12 +11,14 @@ pub async fn start(
     msg: Message,
     mut session: SessionData,
 ) -> HandlerResult {
+    let needs_reply_keyboard_message = session.last_menu_msg_id.is_none();
     session.reset_dialog();
-    session.last_menu_msg_id = None;
 
-    bot.send_message(msg.chat.id, messages::main::welcome())
-        .reply_markup(keyboards::reply::global_navigation())
-        .await?;
+    if needs_reply_keyboard_message {
+        bot.send_message(msg.chat.id, "AutoService Bot запущен.")
+            .reply_markup(keyboards::reply::global_navigation())
+            .await?;
+    }
 
     render_screen(
         &bot,
