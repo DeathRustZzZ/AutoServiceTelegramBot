@@ -1,6 +1,9 @@
 use sqlx::{PgConnection, PgPool};
 use std::path::Path;
 
+#[allow(dead_code)]
+pub mod fixtures;
+
 /// Подготавливает реальную PostgreSQL базу для integration tests.
 ///
 /// Требования перед запуском:
