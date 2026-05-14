@@ -1,6 +1,6 @@
 services:
-  db:
-    image: postgres:16
+  postgres:
+    image: postgres:16-alpine
     container_name: garage-postgres
     restart: unless-stopped
     environment:
@@ -11,11 +11,40 @@ services:
       - "5432:5432"
     volumes:
       - garage_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U garage -d garage"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  garage-migrate:
+    build:
+      context: .
+      target: migrator
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://garage:garage@postgres:5432/garage
+    command: ["migrate", "run", "--source", "crates/garage-infra/migrations"]
+    restart: "no"
+
+  garage-telegram:
+    build:
+      context: .
+      target: runtime
+    container_name: garage-telegram
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage-migrate:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://garage:garage@postgres:5432/garage
+    restart: unless-stopped
 
 volumes:
   garage_postgres_data:

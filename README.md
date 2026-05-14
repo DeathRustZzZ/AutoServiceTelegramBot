@@ -22,3 +22,9 @@
    ```
 
 For a private launch, set `OWNER_CHAT_ID` to your Telegram chat/user id. If it is empty, the bot accepts messages from anyone and logs a startup warning.
+
+## Docker
+
+See [docs/DOCKER.md](docs/DOCKER.md) for the Docker Compose setup with PostgreSQL, migrations, and the Telegram bot.
+
+Important: use `garage` for the bot and `garage_test` for tests. Do not run `docker compose down -v` unless you intentionally want to delete the PostgreSQL volume.
