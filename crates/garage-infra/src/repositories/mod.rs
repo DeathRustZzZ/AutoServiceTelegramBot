@@ -4,6 +4,7 @@ pub mod booking;
 pub mod car;
 pub mod client;
 pub mod part;
+pub mod part_supply;
 pub mod payment;
 pub mod repair;
 pub mod repair_part;
