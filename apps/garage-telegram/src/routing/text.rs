@@ -39,6 +39,10 @@ pub async fn handle(
             .await;
     }
 
+    if text.as_str() == reply::NAV_REPAIRS {
+        return handlers::repairs::show_menu(&bot, &dialogue, msg.chat.id, session).await;
+    }
+
     match session.dialog.clone() {
         DialogState::AddClient(step) => {
             return handlers::clients::handle_add_text(bot, dialogue, msg, session, step, text)
@@ -73,6 +77,12 @@ pub async fn handle(
         }
         DialogState::SetPartStock(step) => {
             return handlers::parts::handle_set_stock_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
+        DialogState::StartRepair(step) => {
+            return handlers::repairs::handle_start_text(
                 bot, dialogue, msg, container, session, step, text,
             )
             .await;

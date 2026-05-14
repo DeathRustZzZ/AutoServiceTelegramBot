@@ -1,11 +1,16 @@
 use std::sync::Arc;
 
-use garage_app::{BookingService, CarService, ClientService, PartService};
+use garage_app::{
+    BookingService, CarService, ClientService, PartService, RepairQueryService, RepairService,
+};
 use garage_infra::db::pool::create_pool;
 use garage_infra::repositories::booking::PgBookingRepository;
 use garage_infra::repositories::car::PgCarRepository;
 use garage_infra::repositories::client::PgClientRepository;
 use garage_infra::repositories::part::PgPartRepository;
+use garage_infra::repositories::payment::PgPaymentRepository;
+use garage_infra::repositories::repair::PgRepairRepository;
+use garage_infra::repositories::repair_part::PgRepairPartRepository;
 use sqlx::PgPool;
 
 use crate::config::Config;
@@ -18,10 +23,25 @@ pub struct AppContainer {
     cars: Arc<PgCarRepository>,
     bookings: Arc<PgBookingRepository>,
     parts: Arc<PgPartRepository>,
+    repairs: Arc<PgRepairRepository>,
+    repair_parts: Arc<PgRepairPartRepository>,
+    payments: Arc<PgPaymentRepository>,
     client_service: Arc<ClientService<PgClientRepository>>,
     car_service: Arc<CarService<PgClientRepository, PgCarRepository>>,
     booking_service: Arc<BookingService<PgClientRepository, PgCarRepository, PgBookingRepository>>,
     part_service: Arc<PartService<PgPartRepository>>,
+    repair_service: Arc<
+        RepairService<PgClientRepository, PgCarRepository, PgBookingRepository, PgRepairRepository>,
+    >,
+    repair_query_service: Arc<
+        RepairQueryService<
+            PgClientRepository,
+            PgCarRepository,
+            PgRepairRepository,
+            PgRepairPartRepository,
+            PgPaymentRepository,
+        >,
+    >,
 }
 
 impl AppContainer {
@@ -31,6 +51,9 @@ impl AppContainer {
         let cars = Arc::new(PgCarRepository::new(pool.clone()));
         let bookings = Arc::new(PgBookingRepository::new(pool.clone()));
         let parts = Arc::new(PgPartRepository::new(pool.clone()));
+        let repairs = Arc::new(PgRepairRepository::new(pool.clone()));
+        let repair_parts = Arc::new(PgRepairPartRepository::new(pool.clone()));
+        let payments = Arc::new(PgPaymentRepository::new(pool.clone()));
         let client_service = Arc::new(ClientService::new((*clients).clone()));
         let car_service = Arc::new(CarService::new((*clients).clone(), (*cars).clone()));
         let booking_service = Arc::new(BookingService::new(
@@ -39,6 +62,19 @@ impl AppContainer {
             (*bookings).clone(),
         ));
         let part_service = Arc::new(PartService::new((*parts).clone()));
+        let repair_service = Arc::new(RepairService::new(
+            (*clients).clone(),
+            (*cars).clone(),
+            (*bookings).clone(),
+            (*repairs).clone(),
+        ));
+        let repair_query_service = Arc::new(RepairQueryService::new(
+            (*clients).clone(),
+            (*cars).clone(),
+            (*repairs).clone(),
+            (*repair_parts).clone(),
+            (*payments).clone(),
+        ));
 
         Ok(Self {
             config,
@@ -47,10 +83,15 @@ impl AppContainer {
             cars,
             bookings,
             parts,
+            repairs,
+            repair_parts,
+            payments,
             client_service,
             car_service,
             booking_service,
             part_service,
+            repair_service,
+            repair_query_service,
         })
     }
 
@@ -78,6 +119,18 @@ impl AppContainer {
         self.parts.clone()
     }
 
+    pub fn repairs(&self) -> Arc<PgRepairRepository> {
+        self.repairs.clone()
+    }
+
+    pub fn repair_parts(&self) -> Arc<PgRepairPartRepository> {
+        self.repair_parts.clone()
+    }
+
+    pub fn payments(&self) -> Arc<PgPaymentRepository> {
+        self.payments.clone()
+    }
+
     pub fn client_service(&self) -> Arc<ClientService<PgClientRepository>> {
         self.client_service.clone()
     }
@@ -94,6 +147,28 @@ impl AppContainer {
 
     pub fn part_service(&self) -> Arc<PartService<PgPartRepository>> {
         self.part_service.clone()
+    }
+
+    pub fn repair_service(
+        &self,
+    ) -> Arc<
+        RepairService<PgClientRepository, PgCarRepository, PgBookingRepository, PgRepairRepository>,
+    > {
+        self.repair_service.clone()
+    }
+
+    pub fn repair_query_service(
+        &self,
+    ) -> Arc<
+        RepairQueryService<
+            PgClientRepository,
+            PgCarRepository,
+            PgRepairRepository,
+            PgRepairPartRepository,
+            PgPaymentRepository,
+        >,
+    > {
+        self.repair_query_service.clone()
     }
 
     pub fn timezone_offset_hours(&self) -> i32 {

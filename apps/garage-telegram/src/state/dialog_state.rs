@@ -6,6 +6,7 @@ pub enum DialogState {
     AddCar(AddCarStep),
     AddBooking(AddBookingStep),
     AddPart(AddPartStep),
+    StartRepair(StartRepairStep),
     SearchClient,
     SearchPart,
     SetPartStock(SetPartStockStep),
@@ -53,4 +54,11 @@ pub enum AddPartStep {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SetPartStockStep {
     AwaitingQuantity,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartRepairStep {
+    AwaitingDescription,
+    AwaitingNotes,
+    Confirm,
 }

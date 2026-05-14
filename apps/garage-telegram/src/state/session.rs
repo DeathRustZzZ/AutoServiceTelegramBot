@@ -3,6 +3,7 @@ use teloxide::types::MessageId;
 
 use crate::state::{
     BookingDraft, CarDraft, ClientDraft, DialogState, PartDraft, SetPartStockDraft,
+    StartRepairDraft,
 };
 
 pub type Storage = InMemStorage<SessionData>;
@@ -17,6 +18,7 @@ pub struct SessionData {
     pub booking_draft: BookingDraft,
     pub part_draft: PartDraft,
     pub set_part_stock_draft: SetPartStockDraft,
+    pub start_repair_draft: StartRepairDraft,
     pub last_menu_msg_id: Option<MessageId>,
 }
 
@@ -28,5 +30,6 @@ impl SessionData {
         self.booking_draft.reset();
         self.part_draft.reset();
         self.set_part_stock_draft.reset();
+        self.start_repair_draft.reset();
     }
 }

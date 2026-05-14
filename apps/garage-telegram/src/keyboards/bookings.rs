@@ -156,6 +156,10 @@ pub fn booking_card(booking: &Booking) -> InlineKeyboardMarkup {
 
     if booking.is_scheduled() {
         rows.push(vec![InlineKeyboardButton::callback(
+            "🔧 Начать ремонт",
+            format!("booking:start_repair:{}", booking.id().as_uuid()),
+        )]);
+        rows.push(vec![InlineKeyboardButton::callback(
             "✅ Выполнена",
             format!("booking:complete:{}", booking.id().as_uuid()),
         )]);

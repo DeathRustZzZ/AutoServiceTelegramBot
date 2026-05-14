@@ -180,6 +180,38 @@ impl RepairRepository for PgRepairRepository {
         rows.iter().map(mappers::repair::to_domain).collect()
     }
 
+    async fn list_active(&self) -> AppResult<Vec<Repair>> {
+        let rows = sqlx::query_as::<_, RepairRow>(
+            r#"
+            SELECT
+                id,
+                client_id,
+                car_id,
+                booking_id,
+                status,
+                description,
+                labor_price,
+                parts_price,
+                parts_cost,
+                paid_amount,
+                currency,
+                notes,
+                started_at,
+                completed_at,
+                created_at,
+                updated_at
+            FROM repairs
+            WHERE status = 'in_progress'
+            ORDER BY updated_at DESC, id ASC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| repository_error("list active repairs", error))?;
+
+        rows.iter().map(mappers::repair::to_domain).collect()
+    }
+
     async fn list_completed_between(
         &self,
         from: DateTime<Utc>,

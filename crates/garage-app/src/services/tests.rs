@@ -284,6 +284,17 @@ impl RepairRepository for Store {
             .collect())
     }
 
+    async fn list_active(&self) -> AppResult<Vec<Repair>> {
+        Ok(self
+            .repairs
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|repair| repair.is_in_progress())
+            .cloned()
+            .collect())
+    }
+
     async fn list_completed_between(
         &self,
         from: DateTime<Utc>,

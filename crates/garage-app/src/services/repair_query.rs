@@ -78,4 +78,33 @@ where
             payments,
         })
     }
+
+    /// Возвращает активные ремонты с данными клиента и автомобиля.
+    pub async fn list_active_repair_details(&self) -> AppResult<Vec<RepairDetails>> {
+        let repairs = self.repairs.list_active().await?;
+        let mut details = Vec::with_capacity(repairs.len());
+
+        for repair in repairs {
+            details.push(self.details_for_repair(repair).await?);
+        }
+
+        Ok(details)
+    }
+
+    async fn details_for_repair(&self, repair: Repair) -> AppResult<RepairDetails> {
+        let client = require_client(&self.clients, repair.client_id()).await?;
+        let car = require_car(&self.cars, repair.car_id()).await?;
+        ensure_car_belongs_to_client(&car, client.id())?;
+
+        let parts = self.repair_parts.list_by_repair(repair.id()).await?;
+        let payments = self.payments.list_by_repair(repair.id()).await?;
+
+        Ok(RepairDetails {
+            repair,
+            client,
+            car,
+            parts,
+            payments,
+        })
+    }
 }

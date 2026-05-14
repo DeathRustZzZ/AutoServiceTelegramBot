@@ -19,6 +19,8 @@ pub trait RepairRepository: Send + Sync {
     async fn list_by_client(&self, client_id: ClientId) -> AppResult<Vec<Repair>>;
     /// Возвращает ремонты автомобиля.
     async fn list_by_car(&self, car_id: CarId) -> AppResult<Vec<Repair>>;
+    /// Возвращает активные ремонты.
+    async fn list_active(&self) -> AppResult<Vec<Repair>>;
     /// Возвращает завершенные ремонты за период.
     async fn list_completed_between(
         &self,
@@ -47,6 +49,10 @@ where
 
     async fn list_by_car(&self, car_id: CarId) -> AppResult<Vec<Repair>> {
         (**self).list_by_car(car_id).await
+    }
+
+    async fn list_active(&self) -> AppResult<Vec<Repair>> {
+        (**self).list_active().await
     }
 
     async fn list_completed_between(

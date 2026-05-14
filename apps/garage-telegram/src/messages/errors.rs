@@ -36,6 +36,10 @@ pub fn part_not_found() -> &'static str {
     "Запчасть не найдена. Возможно, она была удалена или архивирована."
 }
 
+pub fn repair_not_found() -> &'static str {
+    "Ремонт не найден. Возможно, он был удалён или устарел."
+}
+
 pub fn clients_load_failed() -> &'static str {
     "Не удалось загрузить или сохранить данные. Попробуйте позже."
 }
@@ -46,6 +50,7 @@ pub fn app_error(error: &AppError) -> String {
         AppError::CarNotFound(_) => car_not_found().to_string(),
         AppError::BookingNotFound(_) => booking_not_found().to_string(),
         AppError::PartNotFound(_) => part_not_found().to_string(),
+        AppError::RepairNotFound(_) => repair_not_found().to_string(),
         AppError::CarDoesNotBelongToClient { .. } => {
             "Этот автомобиль не принадлежит выбранному клиенту.".to_string()
         }
@@ -53,6 +58,7 @@ pub fn app_error(error: &AppError) -> String {
         AppError::Car(error) => car_error(error),
         AppError::Booking(_) => "Проверьте причину обращения или заметку.".to_string(),
         AppError::Part(error) => part_error(error),
+        AppError::Repair(error) => repair_error(error),
         AppError::Money(_) => {
             "Цена должна быть указана в копейках, например 2500 для 25.00 BYN.".to_string()
         }
@@ -61,6 +67,38 @@ pub fn app_error(error: &AppError) -> String {
         }
         AppError::Repository { .. } => clients_load_failed().to_string(),
         other => format!("Не удалось выполнить действие: {other}"),
+    }
+}
+
+fn repair_error(error: &garage_domain::RepairError) -> String {
+    match error {
+        garage_domain::RepairError::EmptyDescription => {
+            "Проверьте описание или заметку ремонта.".to_string()
+        }
+        garage_domain::RepairError::DescriptionTooLong { .. }
+        | garage_domain::RepairError::NotesTooLong { .. } => {
+            "Проверьте описание или заметку ремонта.".to_string()
+        }
+        garage_domain::RepairError::CannotTransitionStatus { .. }
+        | garage_domain::RepairError::CannotModifyFinalRepair { .. } => {
+            "Этот ремонт уже закрыт.".to_string()
+        }
+        garage_domain::RepairError::PaymentExceedsTotal { .. }
+        | garage_domain::RepairError::CannotRecordPaymentForCancelledRepair
+        | garage_domain::RepairError::ZeroPayment => {
+            "Не удалось выполнить финансовую операцию по ремонту.".to_string()
+        }
+        garage_domain::RepairError::CurrencyMismatch { .. }
+        | garage_domain::RepairError::MoneyOverflow
+        | garage_domain::RepairError::NegativeMoneyResult => "Проверьте суммы ремонта.".to_string(),
+        garage_domain::RepairError::UpdatedAtBeforeCreatedAt
+        | garage_domain::RepairError::UpdatedAtBeforeCompletedAt
+        | garage_domain::RepairError::CreatedAtBeforeStartedAt
+        | garage_domain::RepairError::CompletedAtBeforeStartedAt
+        | garage_domain::RepairError::CompletedRepairWithoutCompletedAt
+        | garage_domain::RepairError::NonCompletedRepairWithCompletedAt => {
+            "Не удалось сохранить ремонт. Попробуйте позже.".to_string()
+        }
     }
 }
 

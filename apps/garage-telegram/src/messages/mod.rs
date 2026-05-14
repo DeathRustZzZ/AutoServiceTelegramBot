@@ -4,3 +4,4 @@ pub mod clients;
 pub mod errors;
 pub mod main;
 pub mod parts;
+pub mod repairs;

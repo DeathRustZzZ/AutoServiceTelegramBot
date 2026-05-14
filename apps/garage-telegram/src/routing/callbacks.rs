@@ -248,6 +248,74 @@ pub async fn handle(
         };
     }
 
+    if let Some(id) = data.strip_prefix("booking:start_repair:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::repairs::begin_start_from_booking(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::BookingId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("repair:open:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::repairs::show_card(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::RepairId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("repair:complete:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::repairs::complete(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::RepairId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("repair:cancel:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::repairs::cancel(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::RepairId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
     if let Some(id) = data.strip_prefix("part:open:") {
         return match Uuid::parse_str(id) {
             Ok(id) => {
@@ -303,6 +371,7 @@ pub async fn handle(
         "nav:low_stock" => {
             handlers::parts::show_low_stock(&bot, &dialogue, chat_id, container, session).await
         }
+        "nav:repairs" => handlers::repairs::show_menu(&bot, &dialogue, chat_id, session).await,
         "client:add" => handlers::clients::begin_add(&bot, &dialogue, chat_id, session).await,
         "client:search" => handlers::clients::begin_search(&bot, &dialogue, chat_id, session).await,
         "client:confirm" => {
@@ -328,6 +397,12 @@ pub async fn handle(
         "part:search" => handlers::parts::begin_search(&bot, &dialogue, chat_id, session).await,
         "part:low_stock" => {
             handlers::parts::show_low_stock(&bot, &dialogue, chat_id, container, session).await
+        }
+        "repair:active" => {
+            handlers::repairs::show_active(&bot, &dialogue, chat_id, container, session).await
+        }
+        "repair:confirm_start" => {
+            handlers::repairs::confirm_start(&bot, &dialogue, chat_id, container, session).await
         }
         "nav:cars" => {
             render_screen(
