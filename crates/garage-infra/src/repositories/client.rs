@@ -35,6 +35,47 @@ impl ClientRepository for PgClientRepository {
         row.as_ref().map(mappers::client::to_domain).transpose()
     }
 
+    async fn list(&self, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        let rows = sqlx::query_as::<_, ClientRow>(
+            r#"
+            SELECT id, name, phone, notes, status, created_at, updated_at
+            FROM clients
+            WHERE status = 'active'
+            ORDER BY created_at DESC, id ASC
+            LIMIT $1 OFFSET $2
+            "#,
+        )
+        .bind(i64::from(limit))
+        .bind(i64::from(offset))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| repository_error("list clients", error))?;
+
+        rows.iter().map(mappers::client::to_domain).collect()
+    }
+
+    async fn search(&self, query: &str, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        let pattern = format!("%{}%", query.trim());
+        let rows = sqlx::query_as::<_, ClientRow>(
+            r#"
+            SELECT id, name, phone, notes, status, created_at, updated_at
+            FROM clients
+            WHERE status = 'active'
+              AND (name ILIKE $1 OR phone ILIKE $1)
+            ORDER BY created_at DESC, id ASC
+            LIMIT $2 OFFSET $3
+            "#,
+        )
+        .bind(pattern)
+        .bind(i64::from(limit))
+        .bind(i64::from(offset))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|error| repository_error("search clients", error))?;
+
+        rows.iter().map(mappers::client::to_domain).collect()
+    }
+
     async fn save(&self, client: &Client) -> AppResult<()> {
         sqlx::query(
             r#"

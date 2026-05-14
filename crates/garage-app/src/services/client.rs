@@ -47,6 +47,35 @@ where
         Ok(client)
     }
 
+    /// Возвращает клиента по id или app-layer ошибку `ClientNotFound`.
+    pub async fn get_client(&self, client_id: ClientId) -> AppResult<Client> {
+        require_client(&self.clients, client_id).await
+    }
+
+    /// Возвращает страницу активных клиентов.
+    pub async fn list_clients(&self, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        self.clients.list(limit, offset).await
+    }
+
+    /// Ищет активных клиентов по имени или телефону.
+    ///
+    /// Пустой запрос трактуется как обычный список: это удобнее для UI и не
+    /// заставляет инфраструктуру обрабатывать специальный случай как ошибку.
+    pub async fn search_clients(
+        &self,
+        query: &str,
+        limit: u32,
+        offset: u32,
+    ) -> AppResult<Vec<Client>> {
+        let query = query.trim();
+
+        if query.is_empty() {
+            return self.list_clients(limit, offset).await;
+        }
+
+        self.clients.search(query, limit, offset).await
+    }
+
     /// Переименовывает существующего клиента.
     ///
     /// Алгоритм:

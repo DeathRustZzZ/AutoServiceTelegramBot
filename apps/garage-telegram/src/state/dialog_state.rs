@@ -3,6 +3,7 @@ pub enum DialogState {
     #[default]
     Idle,
     AddClient(AddClientStep),
+    SearchClient,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

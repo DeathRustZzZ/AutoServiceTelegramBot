@@ -1,6 +1,6 @@
 use chrono::Utc;
 use garage_app::AppError;
-use garage_domain::{ClientName, ClientNotes, PhoneNumber};
+use garage_domain::{ClientId, ClientName, ClientNotes, PhoneNumber};
 use teloxide::prelude::*;
 
 use crate::container::AppContainer;
@@ -8,6 +8,8 @@ use crate::keyboards;
 use crate::messages;
 use crate::state::{AddClientStep, DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
+
+const PAGE_SIZE: u32 = 5;
 
 pub async fn show_menu(
     bot: &Bot,
@@ -46,6 +48,62 @@ pub async fn begin_add(
         session,
         Screen::new(
             messages::clients::ask_name(),
+            keyboards::clients::add_client_back_to_clients(),
+        ),
+    )
+    .await
+}
+
+pub async fn show_list(
+    bot: &Bot,
+    dialogue: &UserDialogue,
+    chat_id: ChatId,
+    container: AppContainer,
+    session: SessionData,
+    page: usize,
+) -> HandlerResult {
+    let offset = page.saturating_mul(PAGE_SIZE as usize) as u32;
+    let clients = match container
+        .client_service()
+        .list_clients(PAGE_SIZE, offset)
+        .await
+    {
+        Ok(clients) => clients,
+        Err(error) => {
+            return render_app_error(bot, dialogue, chat_id, session, &error).await;
+        }
+    };
+
+    let screen = if clients.is_empty() && page == 0 {
+        Screen::new(
+            messages::clients::empty_list(),
+            keyboards::clients::empty_clients(),
+        )
+    } else {
+        Screen::new(
+            messages::clients::list_page(&clients, page),
+            keyboards::clients::clients_list(&clients, page, clients.len() == PAGE_SIZE as usize),
+        )
+    };
+
+    render_screen(bot, dialogue, chat_id, session, screen).await
+}
+
+pub async fn begin_search(
+    bot: &Bot,
+    dialogue: &UserDialogue,
+    chat_id: ChatId,
+    mut session: SessionData,
+) -> HandlerResult {
+    session.dialog = DialogState::SearchClient;
+
+    render_screen(
+        bot,
+        dialogue,
+        chat_id,
+        session,
+        Screen::new(
+            messages::clients::ask_search_query(),
             keyboards::clients::add_client_back_to_clients(),
         ),
     )
@@ -97,6 +155,87 @@ pub async fn handle_add_text(
     };
 
     render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
+}
+
+pub async fn handle_search_text(
+    bot: Bot,
+    dialogue: UserDialogue,
+    msg: Message,
+    container: AppContainer,
+    mut session: SessionData,
+    query: String,
+) -> HandlerResult {
+    let query = query.trim().to_string();
+
+    if query.is_empty() {
+        return render_screen(
+            &bot,
+            &dialogue,
+            msg.chat.id,
+            session,
+            Screen::new(
+                messages::clients::ask_search_query(),
+                keyboards::clients::add_client_back_to_clients(),
+            ),
+        )
+        .await;
+    }
+
+    let clients = match container
+        .client_service()
+        .search_clients(&query, PAGE_SIZE, 0)
+        .await
+    {
+        Ok(clients) => clients,
+        Err(error) => {
+            return render_app_error(&bot, &dialogue, msg.chat.id, session, &error).await;
+        }
+    };
+
+    session.reset_dialog();
+
+    let text = if clients.is_empty() {
+        messages::clients::empty_search_results(&query)
+    } else {
+        messages::clients::search_results(&query, &clients)
+    };
+
+    render_screen(
+        &bot,
+        &dialogue,
+        msg.chat.id,
+        session,
+        Screen::new(text, keyboards::clients::search_results(&clients)),
+    )
+    .await
+}
+
+pub async fn show_card(
+    bot: &Bot,
+    dialogue: &UserDialogue,
+    chat_id: ChatId,
+    container: AppContainer,
+    session: SessionData,
+    client_id: ClientId,
+) -> HandlerResult {
+    let client = match container.client_service().get_client(client_id).await {
+        Ok(client) => client,
+        Err(error) => {
+            return render_app_error(bot, dialogue, chat_id, session, &error).await;
+        }
+    };
+
+    render_screen(
+        bot,
+        dialogue,
+        chat_id,
+        session,
+        Screen::new(
+            messages::clients::client_card(&client, "Клиент"),
+            keyboards::clients::client_card(),
+        ),
+    )
+    .await
 }
 
 pub async fn confirm(
@@ -190,4 +329,24 @@ async fn create_client(
         .client_service()
         .create_client(name, phone, notes, Utc::now())
         .await
+}
+
+async fn render_app_error(
+    bot: &Bot,
+    dialogue: &UserDialogue,
+    chat_id: ChatId,
+    session: SessionData,
+    error: &AppError,
+) -> HandlerResult {
+    render_screen(
+        bot,
+        dialogue,
+        chat_id,
+        session,
+        Screen::new(
+            crate::handlers::errors::app_error_message(error),
+            keyboards::clients::clients_menu(),
+        ),
+    )
+    .await
 }

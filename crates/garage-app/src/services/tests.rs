@@ -43,6 +43,47 @@ impl ClientRepository for Store {
         Ok(self.clients.lock().unwrap().get(&id).cloned())
     }
 
+    async fn list(&self, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        let mut clients = self
+            .clients
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        clients.sort_by_key(|client| std::cmp::Reverse(*client.created_at()));
+
+        Ok(clients
+            .into_iter()
+            .filter(|client| client.status() == ClientStatus::Active)
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect())
+    }
+
+    async fn search(&self, query: &str, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        let query = query.trim().to_lowercase();
+        let mut clients = self
+            .clients
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        clients.sort_by_key(|client| std::cmp::Reverse(*client.created_at()));
+
+        Ok(clients
+            .into_iter()
+            .filter(|client| client.status() == ClientStatus::Active)
+            .filter(|client| {
+                client.name().as_str().to_lowercase().contains(&query)
+                    || client.phone().as_str().to_lowercase().contains(&query)
+            })
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect())
+    }
+
     async fn save(&self, client: &Client) -> AppResult<()> {
         self.clients
             .lock()

@@ -12,6 +12,10 @@ use crate::AppResult;
 pub trait ClientRepository: Send + Sync {
     /// Возвращает клиента или `None`, если id не найден.
     async fn get(&self, id: ClientId) -> AppResult<Option<Client>>;
+    /// Возвращает страницу активных клиентов.
+    async fn list(&self, limit: u32, offset: u32) -> AppResult<Vec<Client>>;
+    /// Ищет активных клиентов по имени или телефону.
+    async fn search(&self, query: &str, limit: u32, offset: u32) -> AppResult<Vec<Client>>;
     /// Сохраняет текущее состояние клиента.
     async fn save(&self, client: &Client) -> AppResult<()>;
 }
@@ -24,6 +28,14 @@ where
 {
     async fn get(&self, id: ClientId) -> AppResult<Option<Client>> {
         (**self).get(id).await
+    }
+
+    async fn list(&self, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        (**self).list(limit, offset).await
+    }
+
+    async fn search(&self, query: &str, limit: u32, offset: u32) -> AppResult<Vec<Client>> {
+        (**self).search(query, limit, offset).await
     }
 
     async fn save(&self, client: &Client) -> AppResult<()> {
