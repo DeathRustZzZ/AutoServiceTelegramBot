@@ -30,6 +30,15 @@ pub async fn handle(
         return handlers::bookings::show_menu(&bot, &dialogue, msg.chat.id, session).await;
     }
 
+    if text.as_str() == reply::NAV_STOCK {
+        return handlers::parts::show_menu(&bot, &dialogue, msg.chat.id, session).await;
+    }
+
+    if text.as_str() == reply::NAV_LOW_STOCK {
+        return handlers::parts::show_low_stock(&bot, &dialogue, msg.chat.id, container, session)
+            .await;
+    }
+
     match session.dialog.clone() {
         DialogState::AddClient(step) => {
             return handlers::clients::handle_add_text(bot, dialogue, msg, session, step, text)
@@ -53,6 +62,21 @@ pub async fn handle(
             )
             .await;
         }
+        DialogState::AddPart(step) => {
+            return handlers::parts::handle_add_text(bot, dialogue, msg, session, step, text).await;
+        }
+        DialogState::SearchPart => {
+            return handlers::parts::handle_search_text(
+                bot, dialogue, msg, container, session, text,
+            )
+            .await;
+        }
+        DialogState::SetPartStock(step) => {
+            return handlers::parts::handle_set_stock_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
         DialogState::Idle => {}
     }
 
@@ -63,14 +87,6 @@ pub async fn handle(
         )),
         reply::NAV_CARS => Some(Screen::new(
             messages::main::not_implemented("Авто"),
-            crate::keyboards::main::main_menu(),
-        )),
-        reply::NAV_STOCK => Some(Screen::new(
-            messages::main::not_implemented("Склад"),
-            crate::keyboards::main::main_menu(),
-        )),
-        reply::NAV_LOW_STOCK => Some(Screen::new(
-            messages::main::not_implemented("Остатки"),
             crate::keyboards::main::main_menu(),
         )),
         reply::NAV_SEARCH => Some(Screen::new(

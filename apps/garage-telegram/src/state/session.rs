@@ -1,7 +1,9 @@
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::types::MessageId;
 
-use crate::state::{BookingDraft, CarDraft, ClientDraft, DialogState};
+use crate::state::{
+    BookingDraft, CarDraft, ClientDraft, DialogState, PartDraft, SetPartStockDraft,
+};
 
 pub type Storage = InMemStorage<SessionData>;
 pub type UserDialogue = Dialogue<SessionData, Storage>;
@@ -13,6 +15,8 @@ pub struct SessionData {
     pub client_draft: ClientDraft,
     pub car_draft: CarDraft,
     pub booking_draft: BookingDraft,
+    pub part_draft: PartDraft,
+    pub set_part_stock_draft: SetPartStockDraft,
     pub last_menu_msg_id: Option<MessageId>,
 }
 
@@ -22,5 +26,7 @@ impl SessionData {
         self.client_draft.reset();
         self.car_draft.reset();
         self.booking_draft.reset();
+        self.part_draft.reset();
+        self.set_part_stock_draft.reset();
     }
 }

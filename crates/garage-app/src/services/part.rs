@@ -70,6 +70,11 @@ where
         Ok(part)
     }
 
+    /// Возвращает активную складскую позицию по идентификатору.
+    pub async fn get_part(&self, part_id: PartId) -> AppResult<Part> {
+        require_part(&self.parts, part_id).await
+    }
+
     /// Ищет запчасти по пользовательскому запросу.
     ///
     /// App-layer не решает, искать ли по названию, SKU или индексу БД. Это

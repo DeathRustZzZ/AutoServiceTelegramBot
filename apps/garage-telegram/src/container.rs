@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use garage_app::{BookingService, CarService, ClientService};
+use garage_app::{BookingService, CarService, ClientService, PartService};
 use garage_infra::db::pool::create_pool;
 use garage_infra::repositories::booking::PgBookingRepository;
 use garage_infra::repositories::car::PgCarRepository;
 use garage_infra::repositories::client::PgClientRepository;
+use garage_infra::repositories::part::PgPartRepository;
 use sqlx::PgPool;
 
 use crate::config::Config;
@@ -16,9 +17,11 @@ pub struct AppContainer {
     clients: Arc<PgClientRepository>,
     cars: Arc<PgCarRepository>,
     bookings: Arc<PgBookingRepository>,
+    parts: Arc<PgPartRepository>,
     client_service: Arc<ClientService<PgClientRepository>>,
     car_service: Arc<CarService<PgClientRepository, PgCarRepository>>,
     booking_service: Arc<BookingService<PgClientRepository, PgCarRepository, PgBookingRepository>>,
+    part_service: Arc<PartService<PgPartRepository>>,
 }
 
 impl AppContainer {
@@ -27,6 +30,7 @@ impl AppContainer {
         let clients = Arc::new(PgClientRepository::new(pool.clone()));
         let cars = Arc::new(PgCarRepository::new(pool.clone()));
         let bookings = Arc::new(PgBookingRepository::new(pool.clone()));
+        let parts = Arc::new(PgPartRepository::new(pool.clone()));
         let client_service = Arc::new(ClientService::new((*clients).clone()));
         let car_service = Arc::new(CarService::new((*clients).clone(), (*cars).clone()));
         let booking_service = Arc::new(BookingService::new(
@@ -34,6 +38,7 @@ impl AppContainer {
             (*cars).clone(),
             (*bookings).clone(),
         ));
+        let part_service = Arc::new(PartService::new((*parts).clone()));
 
         Ok(Self {
             config,
@@ -41,9 +46,11 @@ impl AppContainer {
             clients,
             cars,
             bookings,
+            parts,
             client_service,
             car_service,
             booking_service,
+            part_service,
         })
     }
 
@@ -67,6 +74,10 @@ impl AppContainer {
         self.bookings.clone()
     }
 
+    pub fn parts(&self) -> Arc<PgPartRepository> {
+        self.parts.clone()
+    }
+
     pub fn client_service(&self) -> Arc<ClientService<PgClientRepository>> {
         self.client_service.clone()
     }
@@ -79,6 +90,10 @@ impl AppContainer {
         &self,
     ) -> Arc<BookingService<PgClientRepository, PgCarRepository, PgBookingRepository>> {
         self.booking_service.clone()
+    }
+
+    pub fn part_service(&self) -> Arc<PartService<PgPartRepository>> {
+        self.part_service.clone()
     }
 
     pub fn timezone_offset_hours(&self) -> i32 {

@@ -1,4 +1,4 @@
-use garage_domain::{CarId, ClientId};
+use garage_domain::{CarId, ClientId, PartId};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ClientDraft {
@@ -39,6 +39,33 @@ impl BookingDraft {
 }
 
 impl ClientDraft {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PartDraft {
+    pub name: Option<String>,
+    pub sku: Option<String>,
+    pub quantity: Option<String>,
+    pub min_quantity: Option<String>,
+    pub unit_price: Option<String>,
+    pub notes: Option<String>,
+}
+
+impl PartDraft {
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SetPartStockDraft {
+    pub part_id: Option<PartId>,
+}
+
+impl SetPartStockDraft {
     pub fn reset(&mut self) {
         *self = Self::default();
     }

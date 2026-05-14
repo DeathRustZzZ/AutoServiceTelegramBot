@@ -32,6 +32,10 @@ pub fn booking_not_found() -> &'static str {
     "Запись не найдена. Возможно, она была удалена или устарела."
 }
 
+pub fn part_not_found() -> &'static str {
+    "Запчасть не найдена. Возможно, она была удалена или архивирована."
+}
+
 pub fn clients_load_failed() -> &'static str {
     "Не удалось загрузить или сохранить данные. Попробуйте позже."
 }
@@ -41,12 +45,17 @@ pub fn app_error(error: &AppError) -> String {
         AppError::ClientNotFound(_) => client_not_found().to_string(),
         AppError::CarNotFound(_) => car_not_found().to_string(),
         AppError::BookingNotFound(_) => booking_not_found().to_string(),
+        AppError::PartNotFound(_) => part_not_found().to_string(),
         AppError::CarDoesNotBelongToClient { .. } => {
             "Этот автомобиль не принадлежит выбранному клиенту.".to_string()
         }
         AppError::Client(_) => "Проверьте имя или заметку клиента.".to_string(),
         AppError::Car(error) => car_error(error),
         AppError::Booking(_) => "Проверьте причину обращения или заметку.".to_string(),
+        AppError::Part(error) => part_error(error),
+        AppError::Money(_) => {
+            "Цена должна быть указана в копейках, например 2500 для 25.00 BYN.".to_string()
+        }
         AppError::PhoneNumber(_) => {
             "Проверьте телефон. Используйте корректный номер, например +375291234567.".to_string()
         }
@@ -76,6 +85,28 @@ fn car_error(error: &garage_domain::CarError) -> String {
         }
         garage_domain::CarError::UpdatedAtBeforeCreatedAt => {
             "Не удалось сохранить автомобиль. Попробуйте позже.".to_string()
+        }
+    }
+}
+
+fn part_error(error: &garage_domain::PartError) -> String {
+    match error {
+        garage_domain::PartError::EmptyName => "Проверьте название запчасти.".to_string(),
+        garage_domain::PartError::NameTooLong { .. } => {
+            "Название запчасти слишком длинное.".to_string()
+        }
+        garage_domain::PartError::SkuTooLong { .. } => {
+            "Проверьте SKU/артикул: значение слишком длинное.".to_string()
+        }
+        garage_domain::PartError::NotesTooLong { .. } => {
+            "Заметка по запчасти слишком длинная.".to_string()
+        }
+        garage_domain::PartError::QuantityOverflow => "Количество должно быть числом.".to_string(),
+        garage_domain::PartError::InsufficientStock { .. } => {
+            "Недостаточно запчастей на складе.".to_string()
+        }
+        garage_domain::PartError::UpdatedAtBeforeCreatedAt => {
+            "Не удалось сохранить запчасть. Попробуйте позже.".to_string()
         }
     }
 }

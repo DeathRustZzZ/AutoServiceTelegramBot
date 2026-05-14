@@ -248,6 +248,39 @@ pub async fn handle(
         };
     }
 
+    if let Some(id) = data.strip_prefix("part:open:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::parts::show_card(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::PartId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("part:set_stock:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::parts::begin_set_stock(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    session,
+                    garage_domain::PartId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
+        };
+    }
+
     match data {
         "nav:main" => {
             let mut session = session;
@@ -266,6 +299,10 @@ pub async fn handle(
         }
         "nav:clients" => handlers::clients::show_menu(&bot, &dialogue, chat_id, session).await,
         "nav:bookings" => handlers::bookings::show_menu(&bot, &dialogue, chat_id, session).await,
+        "nav:stock" => handlers::parts::show_menu(&bot, &dialogue, chat_id, session).await,
+        "nav:low_stock" => {
+            handlers::parts::show_low_stock(&bot, &dialogue, chat_id, container, session).await
+        }
         "client:add" => handlers::clients::begin_add(&bot, &dialogue, chat_id, session).await,
         "client:search" => handlers::clients::begin_search(&bot, &dialogue, chat_id, session).await,
         "client:confirm" => {
@@ -284,6 +321,14 @@ pub async fn handle(
         "booking:confirm" => {
             handlers::bookings::confirm(&bot, &dialogue, chat_id, container, session).await
         }
+        "part:add" => handlers::parts::begin_add(&bot, &dialogue, chat_id, session).await,
+        "part:confirm" => {
+            handlers::parts::confirm(&bot, &dialogue, chat_id, container, session).await
+        }
+        "part:search" => handlers::parts::begin_search(&bot, &dialogue, chat_id, session).await,
+        "part:low_stock" => {
+            handlers::parts::show_low_stock(&bot, &dialogue, chat_id, container, session).await
+        }
         "nav:cars" => {
             render_screen(
                 &bot,
@@ -292,32 +337,6 @@ pub async fn handle(
                 session,
                 Screen::new(
                     messages::main::not_implemented("Авто"),
-                    crate::keyboards::main::main_menu(),
-                ),
-            )
-            .await
-        }
-        "nav:stock" => {
-            render_screen(
-                &bot,
-                &dialogue,
-                chat_id,
-                session,
-                Screen::new(
-                    messages::main::not_implemented("Склад"),
-                    crate::keyboards::main::main_menu(),
-                ),
-            )
-            .await
-        }
-        "nav:low_stock" => {
-            render_screen(
-                &bot,
-                &dialogue,
-                chat_id,
-                session,
-                Screen::new(
-                    messages::main::not_implemented("Остатки"),
                     crate::keyboards::main::main_menu(),
                 ),
             )
