@@ -8,6 +8,7 @@ pub mod part_supply;
 pub mod payment;
 pub mod repair;
 pub mod repair_part;
+pub mod stock_movement;
 
 use garage_app::AppError;
 use garage_domain::{Currency, PartQuantity};
