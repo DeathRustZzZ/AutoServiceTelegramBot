@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: garage-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: garage
+      POSTGRES_PASSWORD: garage
+      POSTGRES_DB: garage
+    ports:
+      - "5432:5432"
+    volumes:
+      - garage_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U garage -d garage"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  garage_postgres_data:
