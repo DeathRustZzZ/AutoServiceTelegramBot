@@ -1,3 +1,5 @@
+use garage_domain::Client;
+
 use crate::state::ClientDraft;
 
 pub fn menu() -> &'static str {
@@ -21,11 +23,15 @@ pub fn confirm(draft: &ClientDraft) -> String {
     let phone = draft.phone.as_deref().unwrap_or("не указан");
     let notes = draft.notes.as_deref().unwrap_or("нет");
 
-    format!(
-        "Проверьте данные клиента:\n\nИмя: {name}\nТелефон: {phone}\nЗаметка: {notes}\n\nСохранение в БД будет подключено следующим этапом."
-    )
+    format!("Проверьте данные клиента:\n\nИмя: {name}\nТелефон: {phone}\nЗаметка: {notes}")
 }
 
-pub fn saved_placeholder() -> &'static str {
-    "Данные клиента собраны. Сохранение через ClientService будет подключено следующим этапом."
+pub fn created_card(client: &Client) -> String {
+    let notes = client.notes().map(|notes| notes.as_str()).unwrap_or("нет");
+
+    format!(
+        "Клиент сохранен\n\nИмя: {}\nТелефон: {}\nЗаметка: {notes}",
+        client.name().as_str(),
+        client.phone().as_str()
+    )
 }

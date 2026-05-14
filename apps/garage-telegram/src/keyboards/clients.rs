@@ -23,7 +23,7 @@ pub fn add_client_back_to_clients() -> InlineKeyboardMarkup {
 pub fn add_client_confirm() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
-            "✅ Сохранить позже",
+            "✅ Сохранить",
             "client:confirm",
         )],
         [InlineKeyboardButton::callback(

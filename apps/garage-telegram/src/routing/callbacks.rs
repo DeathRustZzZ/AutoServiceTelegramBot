@@ -1,5 +1,6 @@
 use teloxide::prelude::*;
 
+use crate::container::AppContainer;
 use crate::handlers;
 use crate::messages;
 use crate::state::{HandlerResult, SessionData, UserDialogue};
@@ -10,6 +11,7 @@ pub async fn handle(
     dialogue: UserDialogue,
     query: CallbackQuery,
     session: SessionData,
+    container: AppContainer,
 ) -> HandlerResult {
     bot.answer_callback_query(query.id).await?;
 
@@ -41,7 +43,7 @@ pub async fn handle(
         "nav:clients" => handlers::clients::show_menu(&bot, &dialogue, chat_id, session).await,
         "client:add" => handlers::clients::begin_add(&bot, &dialogue, chat_id, session).await,
         "client:confirm" => {
-            handlers::clients::confirm_placeholder(&bot, &dialogue, chat_id, session).await
+            handlers::clients::confirm(&bot, &dialogue, chat_id, container, session).await
         }
         "nav:bookings" => {
             render_screen(

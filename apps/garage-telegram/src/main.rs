@@ -17,7 +17,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env();
-    let container = AppContainer::new(config);
+    let container = AppContainer::new(config)
+        .await
+        .expect("failed to initialize application container");
 
     bot::run(container).await;
 }

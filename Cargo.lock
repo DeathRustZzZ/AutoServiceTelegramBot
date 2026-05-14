@@ -626,6 +626,7 @@ dependencies = [
  "garage-app",
  "garage-domain",
  "garage-infra",
+ "sqlx",
  "teloxide",
  "thiserror",
  "tokio",

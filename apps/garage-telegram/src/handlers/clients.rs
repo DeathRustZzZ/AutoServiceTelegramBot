@@ -1,5 +1,9 @@
+use chrono::Utc;
+use garage_app::AppError;
+use garage_domain::{ClientName, ClientNotes, PhoneNumber};
 use teloxide::prelude::*;
 
+use crate::container::AppContainer;
 use crate::keyboards;
 use crate::messages;
 use crate::state::{AddClientStep, DialogState, HandlerResult, SessionData, UserDialogue};
@@ -95,13 +99,65 @@ pub async fn handle_add_text(
     render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
 }
 
-pub async fn confirm_placeholder(
+pub async fn confirm(
     bot: &Bot,
     dialogue: &UserDialogue,
     chat_id: ChatId,
+    container: AppContainer,
     mut session: SessionData,
 ) -> HandlerResult {
-    // Здесь будет вызов ClientService::create_client после подключения application container.
+    let Some(name) = session.client_draft.name.as_deref() else {
+        return render_screen(
+            bot,
+            dialogue,
+            chat_id,
+            session,
+            Screen::new(
+                messages::errors::missing_client_name(),
+                keyboards::clients::add_client_back_to_clients(),
+            ),
+        )
+        .await;
+    };
+    let Some(phone) = session.client_draft.phone.as_deref() else {
+        return render_screen(
+            bot,
+            dialogue,
+            chat_id,
+            session,
+            Screen::new(
+                messages::errors::missing_client_phone(),
+                keyboards::clients::add_client_back_to_clients(),
+            ),
+        )
+        .await;
+    };
+
+    let result = create_client(
+        container,
+        name,
+        phone,
+        session.client_draft.notes.as_deref(),
+    )
+    .await;
+
+    let client = match result {
+        Ok(client) => client,
+        Err(error) => {
+            return render_screen(
+                bot,
+                dialogue,
+                chat_id,
+                session,
+                Screen::new(
+                    crate::handlers::errors::app_error_message(&error),
+                    keyboards::clients::add_client_back_to_clients(),
+                ),
+            )
+            .await;
+        }
+    };
+
     session.reset_dialog();
 
     render_screen(
@@ -110,9 +166,28 @@ pub async fn confirm_placeholder(
         chat_id,
         session,
         Screen::new(
-            messages::clients::saved_placeholder(),
+            messages::clients::created_card(&client),
             keyboards::clients::clients_menu(),
         ),
     )
     .await
+}
+
+async fn create_client(
+    container: AppContainer,
+    name: &str,
+    phone: &str,
+    notes: Option<&str>,
+) -> Result<garage_domain::Client, AppError> {
+    let name = ClientName::parse(name)?;
+    let phone = PhoneNumber::parse(phone)?;
+    let notes = match notes {
+        Some(notes) => ClientNotes::parse(notes)?,
+        None => None,
+    };
+
+    container
+        .client_service()
+        .create_client(name, phone, notes, Utc::now())
+        .await
 }

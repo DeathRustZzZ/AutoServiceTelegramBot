@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct Config {
     pub bot_token: String,
+    pub database_url: String,
 }
 
 impl Config {
@@ -9,7 +10,12 @@ impl Config {
             .or_else(|_| std::env::var("BOT_TOKEN"))
             .or_else(|_| std::env::var("TELOXIDE_TOKEN"))
             .expect("TELEGRAM_BOT_TOKEN, BOT_TOKEN or TELOXIDE_TOKEN must be set");
+        let database_url =
+            std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for garage-telegram");
 
-        Self { bot_token }
+        Self {
+            bot_token,
+            database_url,
+        }
     }
 }
