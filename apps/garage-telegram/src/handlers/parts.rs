@@ -9,6 +9,7 @@ use crate::messages;
 use crate::state::{
     AddPartStep, DialogState, HandlerResult, SessionData, SetPartStockStep, UserDialogue,
 };
+use crate::ui::money_input::parse_byn_amount;
 use crate::ui::render::{render_screen, Screen};
 
 pub async fn show_menu(
@@ -486,8 +487,7 @@ fn parse_quantity(input: &str) -> Result<PartQuantity, ()> {
 }
 
 fn parse_price(input: &str) -> Result<Money, ()> {
-    let value = input.trim().parse::<i64>().map_err(|_| ())?;
-    Money::byn_minor(value).map_err(|_| ())
+    parse_byn_amount(input).map_err(|_| ())
 }
 
 fn optional_string(input: String) -> Option<String> {

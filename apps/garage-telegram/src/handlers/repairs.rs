@@ -16,6 +16,7 @@ use crate::state::{
     DialogState, HandlerResult, RecordPaymentStep, SessionData, SetRepairLaborStep,
     StartRepairStep, UseRepairPartStep, UserDialogue,
 };
+use crate::ui::money_input::{ensure_positive_money, parse_byn_amount};
 use crate::ui::render::{render_screen, Screen};
 
 pub async fn show_menu(
@@ -440,7 +441,7 @@ pub async fn handle_set_labor_text(
         return render_missing_draft(&bot, &dialogue, msg.chat.id, session).await;
     };
 
-    let labor_price = match parse_money(&text) {
+    let labor_price = match parse_byn_amount(&text) {
         Ok(value) => value,
         Err(_) => {
             return render_screen(
@@ -505,14 +506,28 @@ pub async fn handle_payment_text(
 ) -> HandlerResult {
     match step {
         RecordPaymentStep::AwaitingAmount => {
-            if parse_money(&text).is_err() {
+            let amount = match parse_byn_amount(&text) {
+                Ok(amount) => amount,
+                Err(_) => {
+                    let keyboard = payment_back_keyboard(&session.record_payment_draft.repair_id);
+                    return render_screen(
+                        &bot,
+                        &dialogue,
+                        msg.chat.id,
+                        session,
+                        Screen::new(messages::repairs::invalid_money(), keyboard),
+                    )
+                    .await;
+                }
+            };
+            if ensure_positive_money(amount).is_err() {
                 let keyboard = payment_back_keyboard(&session.record_payment_draft.repair_id);
                 return render_screen(
                     &bot,
                     &dialogue,
                     msg.chat.id,
                     session,
-                    Screen::new(messages::repairs::invalid_money(), keyboard),
+                    Screen::new(messages::repairs::money_must_be_positive(), keyboard),
                 )
                 .await;
             }
@@ -799,14 +814,29 @@ pub async fn handle_repair_part_text(
             .await
         }
         UseRepairPartStep::AwaitingUnitPrice => {
-            if parse_money(&text).is_err() {
+            let unit_price = match parse_byn_amount(&text) {
+                Ok(unit_price) => unit_price,
+                Err(_) => {
+                    let keyboard =
+                        repair_part_back_keyboard(&session.use_repair_part_draft.repair_id);
+                    return render_screen(
+                        &bot,
+                        &dialogue,
+                        msg.chat.id,
+                        session,
+                        Screen::new(messages::repairs::invalid_money(), keyboard),
+                    )
+                    .await;
+                }
+            };
+            if ensure_positive_money(unit_price).is_err() {
                 let keyboard = repair_part_back_keyboard(&session.use_repair_part_draft.repair_id);
                 return render_screen(
                     &bot,
                     &dialogue,
                     msg.chat.id,
                     session,
-                    Screen::new(messages::repairs::invalid_money(), keyboard),
+                    Screen::new(messages::repairs::money_must_be_positive(), keyboard),
                 )
                 .await;
             }
@@ -1018,7 +1048,10 @@ fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, St
         return Err(draft_error());
     };
 
-    let amount = parse_money(amount).map_err(|_| messages::repairs::invalid_money().to_string())?;
+    let amount =
+        parse_byn_amount(amount).map_err(|_| messages::repairs::invalid_money().to_string())?;
+    let amount = ensure_positive_money(amount)
+        .map_err(|_| messages::repairs::money_must_be_positive().to_string())?;
     let method = parse_payment_method(method)
         .map_err(|_| messages::repairs::invalid_payment_method().to_string())?;
     let comment = match session.record_payment_draft.comment.as_deref() {
@@ -1064,7 +1097,9 @@ async fn parse_repair_part_draft(
     let quantity = parse_positive_quantity(quantity)
         .map_err(|_| messages::repairs::invalid_quantity().to_string())?;
     let unit_price =
-        parse_money(unit_price).map_err(|_| messages::repairs::invalid_money().to_string())?;
+        parse_byn_amount(unit_price).map_err(|_| messages::repairs::invalid_money().to_string())?;
+    let unit_price = ensure_positive_money(unit_price)
+        .map_err(|_| messages::repairs::money_must_be_positive().to_string())?;
     let comment = match session.use_repair_part_draft.comment.as_deref() {
         Some(comment) => StockMovementComment::parse(comment).map_err(|error| {
             crate::handlers::errors::app_error_message(&AppError::StockMovement(error))
@@ -1164,11 +1199,6 @@ async fn render_app_error(
 fn optional_string(input: String) -> Option<String> {
     let value = input.trim();
     (!value.is_empty() && value != "-").then(|| value.to_string())
-}
-
-fn parse_money(input: &str) -> Result<Money, ()> {
-    let value = input.trim().parse::<i64>().map_err(|_| ())?;
-    Money::byn_minor(value).map_err(|_| ())
 }
 
 fn parse_positive_quantity(input: &str) -> Result<PartQuantity, ()> {

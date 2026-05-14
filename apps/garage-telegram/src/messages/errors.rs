@@ -64,9 +64,7 @@ pub fn app_error(error: &AppError) -> String {
         AppError::Repair(error) => repair_error(error),
         AppError::Payment(_) => "Проверьте сумму, способ оплаты или комментарий.".to_string(),
         AppError::StockMovement(_) => "Проверьте комментарий к списанию запчасти.".to_string(),
-        AppError::Money(_) => {
-            "Цена должна быть указана в копейках, например 2500 для 25.00 BYN.".to_string()
-        }
+        AppError::Money(_) => "Введите сумму в BYN. Например: 50 или 50.50".to_string(),
         AppError::PhoneNumber(_) => {
             "Проверьте телефон. Используйте корректный номер, например +375291234567.".to_string()
         }

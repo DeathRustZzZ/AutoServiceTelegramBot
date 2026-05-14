@@ -2,7 +2,7 @@ use garage_domain::Part;
 
 use crate::state::PartDraft;
 
-use super::format::{format_minor_byn, format_money};
+use super::format::{format_byn_input, format_money};
 
 pub fn menu() -> &'static str {
     "📦 Склад"
@@ -25,7 +25,7 @@ pub fn ask_min_quantity() -> &'static str {
 }
 
 pub fn ask_unit_price() -> &'static str {
-    "Введите цену за единицу в копейках BYN:"
+    "Введите цену за единицу в BYN. Например: 25 или 25.50"
 }
 
 pub fn ask_notes() -> &'static str {
@@ -42,8 +42,7 @@ pub fn confirm(draft: &PartDraft) -> String {
         draft
             .unit_price
             .as_deref()
-            .and_then(|value| value.parse::<i64>().ok())
-            .map(format_minor_byn)
+            .and_then(format_byn_input)
             .unwrap_or_else(|| "не указана".to_string()),
         draft.notes.as_deref().unwrap_or("нет")
     )
@@ -123,7 +122,7 @@ pub fn invalid_quantity() -> &'static str {
 }
 
 pub fn invalid_price() -> &'static str {
-    "Цена должна быть указана в копейках, например 2500 для 25.00 BYN."
+    "Введите цену в BYN. Например: 25 или 25.50"
 }
 
 pub fn missing_required_fields() -> &'static str {

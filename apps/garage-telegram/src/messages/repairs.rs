@@ -4,7 +4,7 @@ use garage_domain::{Car, Part, Repair};
 
 use crate::state::{RecordPaymentDraft, StartRepairDraft, UseRepairPartDraft};
 
-use super::format::{format_minor_byn, format_money};
+use super::format::{format_byn_input, format_money};
 
 pub fn menu() -> &'static str {
     "🔧 Ремонты"
@@ -66,11 +66,11 @@ pub fn missing_draft() -> &'static str {
 }
 
 pub fn ask_payment_amount() -> &'static str {
-    "Введите сумму оплаты в копейках BYN:"
+    "Введите сумму оплаты в BYN. Например: 50 или 50.50"
 }
 
 pub fn ask_labor_price() -> &'static str {
-    "Введите стоимость работ в копейках BYN:"
+    "Введите стоимость работ в BYN. Например: 100 или 100.50"
 }
 
 pub fn labor_price_updated_card(details: &RepairDetails) -> String {
@@ -97,8 +97,7 @@ pub fn confirm_payment(details: &RepairDetails, draft: &RecordPaymentDraft) -> S
         draft
             .amount
             .as_deref()
-            .and_then(|value| value.parse::<i64>().ok())
-            .map(format_minor_byn)
+            .and_then(format_byn_input)
             .unwrap_or_else(|| "не указана".to_string()),
         payment_method_title(draft.method.as_deref().unwrap_or("не указан")),
         draft.comment.as_deref().unwrap_or("нет")
@@ -139,7 +138,7 @@ pub fn ask_repair_part_quantity() -> &'static str {
 }
 
 pub fn ask_repair_part_unit_price() -> &'static str {
-    "Введите цену продажи за единицу в копейках BYN:"
+    "Введите цену продажи за единицу в BYN. Например: 25 или 25.50"
 }
 
 pub fn ask_repair_part_comment() -> &'static str {
@@ -161,8 +160,7 @@ pub fn confirm_repair_part(
         draft
             .unit_price
             .as_deref()
-            .and_then(|value| value.parse::<i64>().ok())
-            .map(format_minor_byn)
+            .and_then(format_byn_input)
             .unwrap_or_else(|| "не указана".to_string()),
         draft.comment.as_deref().unwrap_or("нет")
     )
@@ -176,7 +174,11 @@ pub fn repair_part_added_card(details: &RepairDetails, result_message: Option<&s
 }
 
 pub fn invalid_money() -> &'static str {
-    "Введите сумму в копейках, например 5000 для 50.00 BYN."
+    "Введите сумму в BYN. Например: 50 или 50.50"
+}
+
+pub fn money_must_be_positive() -> &'static str {
+    "Сумма должна быть больше 0."
 }
 
 pub fn invalid_quantity() -> &'static str {
