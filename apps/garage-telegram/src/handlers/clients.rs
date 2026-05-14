@@ -215,7 +215,7 @@ pub async fn show_card(
     dialogue: &UserDialogue,
     chat_id: ChatId,
     container: AppContainer,
-    session: SessionData,
+    mut session: SessionData,
     client_id: ClientId,
 ) -> HandlerResult {
     let client = match container.client_service().get_client(client_id).await {
@@ -225,6 +225,8 @@ pub async fn show_card(
         }
     };
 
+    session.reset_dialog();
+
     render_screen(
         bot,
         dialogue,
@@ -232,7 +234,7 @@ pub async fn show_card(
         session,
         Screen::new(
             messages::clients::client_card(&client, "Клиент"),
-            keyboards::clients::client_card(),
+            keyboards::clients::client_card(&client),
         ),
     )
     .await

@@ -69,6 +69,11 @@ where
         Ok(car)
     }
 
+    /// Возвращает автомобиль по id или `CarNotFound`.
+    pub async fn get_car(&self, car_id: CarId) -> AppResult<Car> {
+        require_car(&self.cars, car_id).await
+    }
+
     /// Обновляет идентификационные данные автомобиля.
     ///
     /// В domain слой изменения разделены на методы `update_identity`,

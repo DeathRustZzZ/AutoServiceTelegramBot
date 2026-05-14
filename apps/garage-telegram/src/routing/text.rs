@@ -37,6 +37,12 @@ pub async fn handle(
             )
             .await;
         }
+        DialogState::AddCar(step) => {
+            return handlers::cars::handle_add_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
         DialogState::Idle => {}
     }
 

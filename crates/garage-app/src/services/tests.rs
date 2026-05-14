@@ -111,6 +111,7 @@ impl CarRepository for Store {
             .unwrap()
             .values()
             .filter(|car| car.client_id() == client_id)
+            .filter(|car| car.status() == CarStatus::Active)
             .cloned()
             .collect())
     }

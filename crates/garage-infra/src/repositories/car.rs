@@ -37,6 +37,7 @@ impl CarRepository for PgCarRepository {
                 updated_at
             FROM cars
             WHERE id = $1
+              AND status = 'active'
             "#,
         )
         .bind(id.as_uuid())
@@ -124,7 +125,8 @@ impl CarRepository for PgCarRepository {
                 updated_at
             FROM cars
             WHERE client_id = $1
-            ORDER BY created_at ASC, id ASC
+              AND status = 'active'
+            ORDER BY created_at DESC, id ASC
             "#,
         )
         .bind(client_id.as_uuid())

@@ -76,6 +76,93 @@ pub async fn handle(
         };
     }
 
+    if let Some(id) = data.strip_prefix("client:cars:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::cars::show_client_cars(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::ClientId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => {
+                render_screen(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    session,
+                    Screen::new(
+                        messages::errors::invalid_callback(),
+                        crate::keyboards::clients::clients_menu(),
+                    ),
+                )
+                .await
+            }
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("car:add:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::cars::begin_add(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::ClientId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => {
+                render_screen(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    session,
+                    Screen::new(
+                        messages::errors::invalid_callback(),
+                        crate::keyboards::clients::clients_menu(),
+                    ),
+                )
+                .await
+            }
+        };
+    }
+
+    if let Some(id) = data.strip_prefix("car:open:") {
+        return match Uuid::parse_str(id) {
+            Ok(id) => {
+                handlers::cars::show_card(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    container,
+                    session,
+                    garage_domain::CarId::from_uuid(id),
+                )
+                .await
+            }
+            Err(_) => {
+                render_screen(
+                    &bot,
+                    &dialogue,
+                    chat_id,
+                    session,
+                    Screen::new(
+                        messages::errors::invalid_callback(),
+                        crate::keyboards::clients::clients_menu(),
+                    ),
+                )
+                .await
+            }
+        };
+    }
+
     match data {
         "nav:main" => {
             let mut session = session;
@@ -97,6 +184,9 @@ pub async fn handle(
         "client:search" => handlers::clients::begin_search(&bot, &dialogue, chat_id, session).await,
         "client:confirm" => {
             handlers::clients::confirm(&bot, &dialogue, chat_id, container, session).await
+        }
+        "car:confirm" => {
+            handlers::cars::confirm(&bot, &dialogue, chat_id, container, session).await
         }
         "nav:bookings" => {
             render_screen(

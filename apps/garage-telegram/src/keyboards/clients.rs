@@ -128,8 +128,18 @@ pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
-pub fn client_card() -> InlineKeyboardMarkup {
+pub fn client_card(client: &Client) -> InlineKeyboardMarkup {
+    let client_id = client.id().as_uuid();
+
     InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "🚗 Авто клиента",
+            format!("client:cars:{client_id}"),
+        )],
+        [InlineKeyboardButton::callback(
+            "➕ Добавить авто",
+            format!("car:add:{client_id}"),
+        )],
         [InlineKeyboardButton::callback(
             "⬅️ К клиентам",
             "nav:clients",
