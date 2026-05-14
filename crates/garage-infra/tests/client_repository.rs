@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 #[tokio::test]
 async fn client_repository_saves_and_loads_client() {
-    let pool = common::setup_test_db().await;
-    let repository = PgClientRepository::new(pool);
+    let db = common::setup_test_db().await;
+    let repository = PgClientRepository::new(db.pool());
     let now = chrono::Utc
         .with_ymd_and_hms(2026, 5, 14, 9, 0, 0)
         .single()
