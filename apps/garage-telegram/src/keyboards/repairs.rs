@@ -49,15 +49,16 @@ pub fn active_empty() -> InlineKeyboardMarkup {
 }
 
 pub fn start_confirm(booking_id: BookingId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
             "✅ Начать ремонт",
             "repair:confirm_start",
         )],
-        [InlineKeyboardButton::callback(
+        vec![InlineKeyboardButton::callback(
             "⬅️ К записи",
             format!("booking:open:{}", booking_id.as_uuid()),
         )],
+        super::cancel_row(),
     ])
 }
 
@@ -100,29 +101,38 @@ pub fn repair_card(repair: &Repair) -> InlineKeyboardMarkup {
 }
 
 pub fn back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К ремонтам",
-        "nav:repairs",
-    )]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "⬅️ К ремонтам",
+            "nav:repairs",
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
 }
 
 pub fn back_to_booking(booking_id: BookingId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К записи",
-        format!("booking:open:{}", booking_id.as_uuid()),
-    )]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "⬅️ К записи",
+            format!("booking:open:{}", booking_id.as_uuid()),
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
 }
 
 pub fn payment_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
             "✅ Принять оплату",
             "repair:confirm_payment",
         )],
-        [InlineKeyboardButton::callback(
+        vec![InlineKeyboardButton::callback(
             "⬅️ К ремонту",
             format!("repair:open:{}", repair_id.as_uuid()),
         )],
+        super::cancel_row(),
     ])
 }
 
@@ -152,26 +162,32 @@ pub fn repair_part_search_results(parts: &[Part], repair_id: RepairId) -> Inline
         "⬅️ К ремонту",
         format!("repair:open:{}", repair_id.as_uuid()),
     )]);
+    rows.push(super::cancel_row());
 
     InlineKeyboardMarkup::new(rows)
 }
 
 pub fn repair_part_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
             "✅ Добавить в ремонт",
             "repair:confirm_part",
         )],
-        [InlineKeyboardButton::callback(
+        vec![InlineKeyboardButton::callback(
             "⬅️ К ремонту",
             format!("repair:open:{}", repair_id.as_uuid()),
         )],
+        super::cancel_row(),
     ])
 }
 
 pub fn back_to_repair(repair_id: RepairId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К ремонту",
-        format!("repair:open:{}", repair_id.as_uuid()),
-    )]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "⬅️ К ремонту",
+            format!("repair:open:{}", repair_id.as_uuid()),
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
 }

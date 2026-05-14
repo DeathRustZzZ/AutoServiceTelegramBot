@@ -1,6 +1,8 @@
-use garage_domain::{Money, Part};
+use garage_domain::Part;
 
 use crate::state::PartDraft;
+
+use super::format::{format_minor_byn, format_money};
 
 pub fn menu() -> &'static str {
     "📦 Склад"
@@ -126,12 +128,4 @@ pub fn invalid_price() -> &'static str {
 
 pub fn missing_required_fields() -> &'static str {
     "Не хватает данных запчасти. Начните добавление заново."
-}
-
-fn format_money(value: Money) -> String {
-    format_minor_byn(value.amount_minor())
-}
-
-fn format_minor_byn(value: i64) -> String {
-    format!("{}.{:02} BYN", value / 100, value % 100)
 }

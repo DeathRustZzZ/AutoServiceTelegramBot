@@ -6,7 +6,7 @@
 //! - `StockMovement` объясняет, почему изменился складской остаток.
 //!
 //! Сервис не пересчитывает цены ремонта и не сохраняет `Repair`: в этом
-//! сценарии ремонт нужен только как контекст и защита от списания в отмененный
+//! сценарии ремонт нужен только как контекст и защита от списания в закрытый
 //! ремонт.
 
 use chrono::{DateTime, Utc};
@@ -90,8 +90,8 @@ where
         command: UsePartInRepairCommand,
     ) -> AppResult<UsePartInRepairResult> {
         let mut repair = require_repair(&self.repairs, command.repair_id).await?;
-        if repair.is_cancelled() {
-            return Err(AppError::CannotUsePartForCancelledRepair {
+        if !repair.is_in_progress() {
+            return Err(AppError::CannotUsePartForClosedRepair {
                 repair_id: command.repair_id,
             });
         }

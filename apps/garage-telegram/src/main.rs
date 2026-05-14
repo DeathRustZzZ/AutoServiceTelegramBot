@@ -17,6 +17,10 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let config = Config::from_env();
+    if config.owner_chat_id.is_none() {
+        tracing::warn!("OWNER_CHAT_ID is not set; bot accepts messages from anyone");
+    }
+
     let container = AppContainer::new(config)
         .await
         .expect("failed to initialize application container");

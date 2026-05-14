@@ -49,6 +49,7 @@ pub fn list(items: &[BookingDetails]) -> InlineKeyboardMarkup {
         "🏠 Главное меню",
         "nav:main",
     )]);
+    rows.push(super::cancel_row());
 
     InlineKeyboardMarkup::new(rows)
 }
@@ -92,6 +93,7 @@ pub fn client_search_results(clients: &[Client]) -> InlineKeyboardMarkup {
         "🏠 Главное меню",
         "nav:main",
     )]);
+    rows.push(super::cancel_row());
 
     InlineKeyboardMarkup::new(rows)
 }
@@ -139,15 +141,16 @@ pub fn no_cars(client_id: ClientId) -> InlineKeyboardMarkup {
 }
 
 pub fn confirm() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
             "✅ Сохранить",
             "booking:confirm",
         )],
-        [InlineKeyboardButton::callback(
+        vec![InlineKeyboardButton::callback(
             "⬅️ К записям",
             "nav:bookings",
         )],
+        super::cancel_row(),
     ])
 }
 
@@ -182,8 +185,12 @@ pub fn booking_card(booking: &Booking) -> InlineKeyboardMarkup {
 }
 
 pub fn back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К записям",
-        "nav:bookings",
-    )]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "⬅️ К записям",
+            "nav:bookings",
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
 }

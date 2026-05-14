@@ -39,8 +39,8 @@ where
         command: UsePartInRepairCommand,
     ) -> AppResult<UsePartInRepairResult> {
         let mut repair = require_repair(self.uow.repairs(), command.repair_id).await?;
-        if repair.is_cancelled() {
-            return Err(AppError::CannotUsePartForCancelledRepair {
+        if !repair.is_in_progress() {
+            return Err(AppError::CannotUsePartForClosedRepair {
                 repair_id: command.repair_id,
             });
         }

@@ -5,3 +5,9 @@ pub mod main;
 pub mod parts;
 pub mod repairs;
 pub mod reply;
+
+use teloxide::types::InlineKeyboardButton;
+
+pub fn cancel_row() -> Vec<InlineKeyboardButton> {
+    vec![InlineKeyboardButton::callback("❌ Отмена", "nav:cancel")]
+}

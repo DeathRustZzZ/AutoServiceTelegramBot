@@ -4,6 +4,7 @@ use crate::messages;
 use crate::state::HandlerResult;
 
 pub fn app_error_message(error: &garage_app::AppError) -> String {
+    tracing::warn!(error = %error, "telegram handler app error");
     messages::errors::app_error(error)
 }
 

@@ -1,8 +1,10 @@
 use chrono::{DateTime, Duration, Utc};
 use garage_app::{BookingDetails, RepairDetails};
-use garage_domain::{Car, Money, Part, Repair};
+use garage_domain::{Car, Part, Repair};
 
 use crate::state::{RecordPaymentDraft, StartRepairDraft, UseRepairPartDraft};
+
+use super::format::{format_minor_byn, format_money};
 
 pub fn menu() -> &'static str {
     "🔧 Ремонты"
@@ -76,7 +78,11 @@ pub fn labor_price_updated_card(details: &RepairDetails) -> String {
 }
 
 pub fn ask_payment_method() -> &'static str {
-    "Введите способ оплаты: cash, card, transfer, crypto или other"
+    "Введите способ оплаты: cash, card, transfer, crypto или other."
+}
+
+pub fn invalid_payment_method() -> &'static str {
+    "Неизвестный способ оплаты. Используйте: cash, card, transfer, crypto или other."
 }
 
 pub fn ask_payment_comment() -> &'static str {
@@ -220,19 +226,6 @@ fn car_title(car: &Car) -> String {
         ),
         None => format!("{} {}", car.make().as_str(), car.model().as_str()),
     }
-}
-
-fn format_money(value: Money) -> String {
-    format!(
-        "{}.{:02} {}",
-        value.amount_minor() / 100,
-        value.amount_minor() % 100,
-        value.currency()
-    )
-}
-
-fn format_minor_byn(value: i64) -> String {
-    format!("{}.{:02} BYN", value / 100, value % 100)
 }
 
 fn payment_method_title(value: &str) -> &'static str {

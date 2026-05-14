@@ -187,6 +187,10 @@ impl AppContainer {
         self.config.timezone_offset_hours
     }
 
+    pub fn owner_chat_id(&self) -> Option<i64> {
+        self.config.owner_chat_id
+    }
+
     pub async fn record_payment(
         &self,
         command: RecordPaymentCommand,

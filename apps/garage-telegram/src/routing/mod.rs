@@ -3,6 +3,7 @@ use teloxide::prelude::*;
 
 use crate::state::{HandlerResult, SessionData, Storage};
 
+pub mod access;
 pub mod callbacks;
 pub mod text;
 

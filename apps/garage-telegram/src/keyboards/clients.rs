@@ -23,22 +23,27 @@ pub fn clients_menu() -> InlineKeyboardMarkup {
 }
 
 pub fn add_client_back_to_clients() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К клиентам",
-        "nav:clients",
-    )]])
-}
-
-pub fn add_client_confirm() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "✅ Сохранить",
-            "client:confirm",
-        )],
         [InlineKeyboardButton::callback(
             "⬅️ К клиентам",
             "nav:clients",
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
+}
+
+pub fn add_client_confirm() -> InlineKeyboardMarkup {
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
+            "✅ Сохранить",
+            "client:confirm",
         )],
+        vec![InlineKeyboardButton::callback(
+            "⬅️ К клиентам",
+            "nav:clients",
+        )],
+        super::cancel_row(),
     ])
 }
 

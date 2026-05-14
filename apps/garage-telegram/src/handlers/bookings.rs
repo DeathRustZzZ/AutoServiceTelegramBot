@@ -45,9 +45,11 @@ pub async fn show_today(
         chat_id,
         container,
         session,
-        from,
-        to,
-        PeriodKind::Today,
+        PeriodWindow {
+            from,
+            to,
+            kind: PeriodKind::Today,
+        },
     )
     .await
 }
@@ -66,9 +68,11 @@ pub async fn show_tomorrow(
         chat_id,
         container,
         session,
-        from,
-        to,
-        PeriodKind::Tomorrow,
+        PeriodWindow {
+            from,
+            to,
+            kind: PeriodKind::Tomorrow,
+        },
     )
     .await
 }
@@ -79,13 +83,11 @@ pub async fn show_period_list(
     chat_id: ChatId,
     container: AppContainer,
     mut session: SessionData,
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
-    kind: PeriodKind,
+    window: PeriodWindow,
 ) -> HandlerResult {
     let items = match container
         .booking_service()
-        .list_booking_details_between(from, to)
+        .list_booking_details_between(window.from, window.to)
         .await
     {
         Ok(items) => items,
@@ -94,7 +96,7 @@ pub async fn show_period_list(
 
     session.reset_dialog();
 
-    let text = match (kind, items.is_empty()) {
+    let text = match (window.kind, items.is_empty()) {
         (PeriodKind::Today, true) => messages::bookings::empty_today().to_string(),
         (PeriodKind::Tomorrow, true) => messages::bookings::empty_tomorrow().to_string(),
         (PeriodKind::Today, false) => {
@@ -655,4 +657,11 @@ fn optional_string(value: String) -> Option<String> {
 pub enum PeriodKind {
     Today,
     Tomorrow,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PeriodWindow {
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+    kind: PeriodKind,
 }

@@ -23,16 +23,20 @@ pub fn menu() -> InlineKeyboardMarkup {
 }
 
 pub fn add_part_back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")].to_vec(),
+        super::cancel_row(),
+    ])
 }
 
 pub fn add_part_confirm() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
             "✅ Сохранить",
             "part:confirm",
         )],
-        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")],
+        vec![InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")],
+        super::cancel_row(),
     ])
 }
 
@@ -115,5 +119,8 @@ pub fn part_card(part: &Part) -> InlineKeyboardMarkup {
 }
 
 pub fn back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")]])
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")].to_vec(),
+        super::cancel_row(),
+    ])
 }

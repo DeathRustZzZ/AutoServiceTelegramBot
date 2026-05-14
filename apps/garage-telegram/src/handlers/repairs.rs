@@ -216,14 +216,14 @@ pub async fn confirm_start(
 
     let input = match parse_start_draft(&session, &details) {
         Ok(input) => input,
-        Err(error) => {
+        Err(message) => {
             return render_screen(
                 bot,
                 dialogue,
                 chat_id,
                 session,
                 Screen::new(
-                    crate::handlers::errors::app_error_message(&error),
+                    message,
                     keyboards::repairs::start_confirm(details.booking.id()),
                 ),
             )
@@ -538,7 +538,7 @@ pub async fn handle_payment_text(
                     &dialogue,
                     msg.chat.id,
                     session,
-                    Screen::new(messages::repairs::ask_payment_method(), keyboard),
+                    Screen::new(messages::repairs::invalid_payment_method(), keyboard),
                 )
                 .await;
             }
@@ -617,16 +617,13 @@ pub async fn confirm_payment(
 ) -> HandlerResult {
     let command = match parse_payment_draft(&session) {
         Ok(command) => command,
-        Err(error) => {
+        Err(message) => {
             return render_screen(
                 bot,
                 dialogue,
                 chat_id,
                 session,
-                Screen::new(
-                    crate::handlers::errors::app_error_message(&error),
-                    keyboards::repairs::back_to_menu(),
-                ),
+                Screen::new(message, keyboards::repairs::back_to_menu()),
             )
             .await;
         }
@@ -921,7 +918,16 @@ pub async fn confirm_repair_part(
 ) -> HandlerResult {
     let command = match parse_repair_part_draft(&container, &session).await {
         Ok(command) => command,
-        Err(error) => return render_app_error(bot, dialogue, chat_id, session, &error).await,
+        Err(message) => {
+            return render_screen(
+                bot,
+                dialogue,
+                chat_id,
+                session,
+                Screen::new(message, keyboards::repairs::back_to_menu()),
+            )
+            .await;
+        }
     };
     let repair_id = command.repair_id;
 
@@ -958,17 +964,17 @@ pub async fn confirm_repair_part(
 fn parse_start_draft(
     session: &SessionData,
     details: &BookingDetails,
-) -> Result<StartRepairCommand, AppError> {
+) -> Result<StartRepairCommand, String> {
     let Some(description) = session.start_repair_draft.description.as_deref() else {
-        return Err(AppError::Repository {
-            operation: "start repair draft",
-            message: messages::repairs::missing_draft().to_string(),
-        });
+        return Err(messages::repairs::missing_draft().to_string());
     };
 
-    let description = RepairDescription::parse(description)?;
+    let description = RepairDescription::parse(description)
+        .map_err(|error| crate::handlers::errors::app_error_message(&AppError::Repair(error)))?;
     let notes = match session.start_repair_draft.notes.as_deref() {
-        Some(notes) => RepairNotes::parse(notes)?,
+        Some(notes) => RepairNotes::parse(notes).map_err(|error| {
+            crate::handlers::errors::app_error_message(&AppError::Repair(error))
+        })?,
         None => None,
     };
     let zero = Money::zero(Currency::Byn);
@@ -1001,7 +1007,7 @@ async fn load_draft_booking(
         .map(Some)
 }
 
-fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, AppError> {
+fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, String> {
     let Some(repair_id) = session.record_payment_draft.repair_id else {
         return Err(draft_error());
     };
@@ -1012,10 +1018,13 @@ fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, Ap
         return Err(draft_error());
     };
 
-    let amount = parse_money(amount).map_err(|_| money_input_error())?;
-    let method = parse_payment_method(method).map_err(|_| money_input_error())?;
+    let amount = parse_money(amount).map_err(|_| messages::repairs::invalid_money().to_string())?;
+    let method = parse_payment_method(method)
+        .map_err(|_| messages::repairs::invalid_payment_method().to_string())?;
     let comment = match session.record_payment_draft.comment.as_deref() {
-        Some(comment) => PaymentComment::parse(comment)?,
+        Some(comment) => PaymentComment::parse(comment).map_err(|error| {
+            crate::handlers::errors::app_error_message(&AppError::Payment(error))
+        })?,
         None => None,
     };
     let now = Utc::now();
@@ -1033,7 +1042,7 @@ fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, Ap
 async fn parse_repair_part_draft(
     container: &AppContainer,
     session: &SessionData,
-) -> Result<UsePartInRepairCommand, AppError> {
+) -> Result<UsePartInRepairCommand, String> {
     let Some(repair_id) = session.use_repair_part_draft.repair_id else {
         return Err(draft_error());
     };
@@ -1047,11 +1056,19 @@ async fn parse_repair_part_draft(
         return Err(draft_error());
     };
 
-    let part = container.part_service().get_part(part_id).await?;
-    let quantity = parse_positive_quantity(quantity).map_err(|_| quantity_input_error())?;
-    let unit_price = parse_money(unit_price).map_err(|_| money_input_error())?;
+    let part = container
+        .part_service()
+        .get_part(part_id)
+        .await
+        .map_err(|error| crate::handlers::errors::app_error_message(&error))?;
+    let quantity = parse_positive_quantity(quantity)
+        .map_err(|_| messages::repairs::invalid_quantity().to_string())?;
+    let unit_price =
+        parse_money(unit_price).map_err(|_| messages::repairs::invalid_money().to_string())?;
     let comment = match session.use_repair_part_draft.comment.as_deref() {
-        Some(comment) => StockMovementComment::parse(comment)?,
+        Some(comment) => StockMovementComment::parse(comment).map_err(|error| {
+            crate::handlers::errors::app_error_message(&AppError::StockMovement(error))
+        })?,
         None => None,
     };
     let now = Utc::now();
@@ -1212,23 +1229,6 @@ fn start_back_keyboard(booking_id: &Option<BookingId>) -> teloxide::types::Inlin
     }
 }
 
-fn draft_error() -> AppError {
-    AppError::Repository {
-        operation: "repair telegram draft",
-        message: messages::repairs::missing_draft().to_string(),
-    }
-}
-
-fn money_input_error() -> AppError {
-    AppError::Repository {
-        operation: "repair money input",
-        message: messages::repairs::invalid_money().to_string(),
-    }
-}
-
-fn quantity_input_error() -> AppError {
-    AppError::Repository {
-        operation: "repair quantity input",
-        message: messages::repairs::invalid_quantity().to_string(),
-    }
+fn draft_error() -> String {
+    messages::repairs::missing_draft().to_string()
 }

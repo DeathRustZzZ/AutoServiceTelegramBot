@@ -14,6 +14,10 @@ pub async fn handle(
     session: SessionData,
     container: AppContainer,
 ) -> HandlerResult {
+    if !crate::routing::access::ensure_callback_access(&bot, &query, &container).await? {
+        return Ok(());
+    }
+
     bot.answer_callback_query(query.id.clone()).await?;
 
     let Some(message) = query.message.as_ref() else {
@@ -31,19 +35,7 @@ pub async fn handle(
                 handlers::clients::show_list(&bot, &dialogue, chat_id, container, session, page)
                     .await
             }
-            Err(_) => {
-                render_screen(
-                    &bot,
-                    &dialogue,
-                    chat_id,
-                    session,
-                    Screen::new(
-                        messages::errors::invalid_callback(),
-                        crate::keyboards::clients::clients_menu(),
-                    ),
-                )
-                .await
-            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
         };
     }
 
@@ -60,19 +52,7 @@ pub async fn handle(
                 )
                 .await
             }
-            Err(_) => {
-                render_screen(
-                    &bot,
-                    &dialogue,
-                    chat_id,
-                    session,
-                    Screen::new(
-                        messages::errors::invalid_callback(),
-                        crate::keyboards::clients::clients_menu(),
-                    ),
-                )
-                .await
-            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
         };
     }
 
@@ -89,19 +69,7 @@ pub async fn handle(
                 )
                 .await
             }
-            Err(_) => {
-                render_screen(
-                    &bot,
-                    &dialogue,
-                    chat_id,
-                    session,
-                    Screen::new(
-                        messages::errors::invalid_callback(),
-                        crate::keyboards::clients::clients_menu(),
-                    ),
-                )
-                .await
-            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
         };
     }
 
@@ -118,19 +86,7 @@ pub async fn handle(
                 )
                 .await
             }
-            Err(_) => {
-                render_screen(
-                    &bot,
-                    &dialogue,
-                    chat_id,
-                    session,
-                    Screen::new(
-                        messages::errors::invalid_callback(),
-                        crate::keyboards::clients::clients_menu(),
-                    ),
-                )
-                .await
-            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
         };
     }
 
@@ -147,19 +103,7 @@ pub async fn handle(
                 )
                 .await
             }
-            Err(_) => {
-                render_screen(
-                    &bot,
-                    &dialogue,
-                    chat_id,
-                    session,
-                    Screen::new(
-                        messages::errors::invalid_callback(),
-                        crate::keyboards::clients::clients_menu(),
-                    ),
-                )
-                .await
-            }
+            Err(_) => invalid_callback(&bot, &dialogue, chat_id, session).await,
         };
     }
 
@@ -432,6 +376,18 @@ pub async fn handle(
             )
             .await
         }
+        "nav:cancel" => {
+            let mut session = session;
+            session.reset_dialog();
+            render_screen(
+                &bot,
+                &dialogue,
+                chat_id,
+                session,
+                Screen::new("Действие отменено.", crate::keyboards::main::main_menu()),
+            )
+            .await
+        }
         "nav:clients" => handlers::clients::show_menu(&bot, &dialogue, chat_id, session).await,
         "nav:bookings" => handlers::bookings::show_menu(&bot, &dialogue, chat_id, session).await,
         "nav:stock" => handlers::parts::show_menu(&bot, &dialogue, chat_id, session).await,
@@ -504,7 +460,14 @@ pub async fn handle(
             )
             .await
         }
-        _ => Ok(()),
+        _ => {
+            tracing::warn!(
+                chat_id = chat_id.0,
+                callback_prefix = data.split(':').next().unwrap_or_default(),
+                "unknown callback data"
+            );
+            invalid_callback(&bot, &dialogue, chat_id, session).await
+        }
     }
 }
 
@@ -514,6 +477,7 @@ async fn invalid_callback(
     chat_id: ChatId,
     session: SessionData,
 ) -> HandlerResult {
+    tracing::warn!(chat_id = chat_id.0, "invalid callback data");
     render_screen(
         bot,
         dialogue,

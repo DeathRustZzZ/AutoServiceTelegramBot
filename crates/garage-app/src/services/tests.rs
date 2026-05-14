@@ -2209,7 +2209,55 @@ async fn use_part_in_repair_rejects_cancelled_repair() {
 
     assert!(matches!(
         result,
-        Err(AppError::CannotUsePartForCancelledRepair { repair_id }) if repair_id == repair.id()
+        Err(AppError::CannotUsePartForClosedRepair { repair_id }) if repair_id == repair.id()
+    ));
+    assert_eq!(
+        PartRepository::get(&store, part.id())
+            .await
+            .unwrap()
+            .unwrap()
+            .quantity(),
+        PartQuantity::new(10)
+    );
+    assert!(store.repair_parts.lock().unwrap().is_empty());
+    assert!(store.stock_movements.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn use_part_in_repair_rejects_completed_repair() {
+    let store = store();
+    let client = create_client_fixture(store.clone(), "Иван", "+375291111111").await;
+    let car = create_car_fixture(store.clone(), client.id(), "BMW", "X5").await;
+    let part = create_part_fixture(store.clone(), "Фильтр", "flt-001", 10).await;
+    let repair_service =
+        RepairService::new(store.clone(), store.clone(), store.clone(), store.clone());
+    let repair = repair_service
+        .start_repair(start_repair_command(client.id(), car.id(), None))
+        .await
+        .unwrap();
+    let repair = repair_service
+        .complete_repair(repair.id(), ts(10))
+        .await
+        .unwrap();
+    let service =
+        RepairPartService::new(store.clone(), store.clone(), store.clone(), store.clone());
+
+    let result = service
+        .use_part_in_repair(UsePartInRepairCommand {
+            repair_id: repair.id(),
+            part_id: part.id(),
+            quantity: PartQuantity::new(2),
+            unit_cost: Money::byn_minor(700).unwrap(),
+            unit_price: Money::byn_minor(1000).unwrap(),
+            comment: None,
+            occurred_at: ts(11),
+            now: ts(11),
+        })
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(AppError::CannotUsePartForClosedRepair { repair_id }) if repair_id == repair.id()
     ));
     assert_eq!(
         PartRepository::get(&store, part.id())

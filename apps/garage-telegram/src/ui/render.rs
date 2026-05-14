@@ -30,9 +30,19 @@ pub async fn render_screen(
             .reply_markup(screen.keyboard.clone())
             .await;
 
-        if edited.is_ok() {
-            dialogue.update(session).await?;
-            return Ok(());
+        match edited {
+            Ok(_) => {
+                dialogue.update(session).await?;
+                return Ok(());
+            }
+            Err(error) => {
+                tracing::warn!(
+                    chat_id = chat_id.0,
+                    message_id = message_id.0,
+                    error = %error,
+                    "failed to edit menu message; falling back to send_message"
+                );
+            }
         }
     }
 

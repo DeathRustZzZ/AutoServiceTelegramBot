@@ -39,22 +39,27 @@ pub fn empty_client_cars(client_id: ClientId) -> InlineKeyboardMarkup {
 }
 
 pub fn add_car_back_to_client(client_id: ClientId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К клиенту",
-        format!("client:open:{}", client_id.as_uuid()),
-    )]])
-}
-
-pub fn add_car_confirm(client_id: ClientId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "✅ Сохранить",
-            "car:confirm",
-        )],
         [InlineKeyboardButton::callback(
             "⬅️ К клиенту",
             format!("client:open:{}", client_id.as_uuid()),
+        )]
+        .to_vec(),
+        super::cancel_row(),
+    ])
+}
+
+pub fn add_car_confirm(client_id: ClientId) -> InlineKeyboardMarkup {
+    InlineKeyboardMarkup::new(vec![
+        vec![InlineKeyboardButton::callback(
+            "✅ Сохранить",
+            "car:confirm",
         )],
+        vec![InlineKeyboardButton::callback(
+            "⬅️ К клиенту",
+            format!("client:open:{}", client_id.as_uuid()),
+        )],
+        super::cancel_row(),
     ])
 }
 

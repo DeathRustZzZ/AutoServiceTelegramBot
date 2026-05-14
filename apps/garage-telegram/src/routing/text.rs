@@ -14,12 +14,29 @@ pub async fn handle(
     session: SessionData,
     container: AppContainer,
 ) -> HandlerResult {
+    if !crate::routing::access::ensure_message_access(&bot, &msg, &container).await? {
+        return Ok(());
+    }
+
     let Some(text) = msg.text().map(str::trim).map(str::to_string) else {
         return Ok(());
     };
 
     if text.as_str() == "/start" {
         return handlers::start::start(bot, dialogue, msg, session).await;
+    }
+
+    if text.as_str() == "/cancel" {
+        let mut session = session;
+        session.reset_dialog();
+        return render_screen(
+            &bot,
+            &dialogue,
+            msg.chat.id,
+            session,
+            Screen::new("Действие отменено.", crate::keyboards::main::main_menu()),
+        )
+        .await;
     }
 
     if text.as_str() == reply::NAV_CLIENTS {
@@ -109,10 +126,6 @@ pub async fn handle(
     }
 
     let screen = match text.as_str() {
-        reply::NAV_BOOKINGS => Some(Screen::new(
-            messages::main::not_implemented("Записи"),
-            crate::keyboards::main::main_menu(),
-        )),
         reply::NAV_CARS => Some(Screen::new(
             messages::main::not_implemented("Авто"),
             crate::keyboards::main::main_menu(),

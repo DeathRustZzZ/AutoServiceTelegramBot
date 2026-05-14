@@ -54,8 +54,8 @@ pub fn app_error(error: &AppError) -> String {
         AppError::CarDoesNotBelongToClient { .. } => {
             "Этот автомобиль не принадлежит выбранному клиенту.".to_string()
         }
-        AppError::CannotUsePartForCancelledRepair { .. } => {
-            "Нельзя добавить запчасть в отменённый ремонт.".to_string()
+        AppError::CannotUsePartForClosedRepair { .. } => {
+            "Нельзя добавить запчасть в завершённый или отменённый ремонт.".to_string()
         }
         AppError::Client(_) => "Проверьте имя или заметку клиента.".to_string(),
         AppError::Car(error) => car_error(error),

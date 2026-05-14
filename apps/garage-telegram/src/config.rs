@@ -3,6 +3,7 @@ pub struct Config {
     pub bot_token: String,
     pub database_url: String,
     pub timezone_offset_hours: i32,
+    pub owner_chat_id: Option<i64>,
 }
 
 impl Config {
@@ -18,11 +19,18 @@ impl Config {
             .ok()
             .and_then(|value| value.parse::<i32>().ok())
             .unwrap_or(0);
+        let owner_chat_id = std::env::var("OWNER_CHAT_ID").ok().and_then(|value| {
+            let value = value.trim();
+            (!value.is_empty())
+                .then(|| value.parse::<i64>().ok())
+                .flatten()
+        });
 
         Self {
             bot_token,
             database_url,
             timezone_offset_hours,
+            owner_chat_id,
         }
     }
 }
