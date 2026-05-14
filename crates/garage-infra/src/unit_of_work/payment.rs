@@ -1,35 +1,25 @@
-use std::sync::Arc;
-
+use crate::mappers;
+use crate::models::{PaymentRow, RepairRow};
+use crate::repositories::{currency_code, repository_error};
+use crate::unit_of_work::transaction::SharedPgTransaction;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use garage_app::{AppResult, PaymentRepository, PaymentUnitOfWork, RepairRepository};
 use garage_domain::{CarId, ClientId, Payment, PaymentId, Repair, RepairId};
-use sqlx::{Postgres, Transaction};
-use tokio::sync::Mutex;
-
-use crate::mappers;
-use crate::models::{PaymentRow, RepairRow};
-use crate::repositories::{currency_code, repository_error};
-
-type SharedTransaction = Arc<Mutex<Option<Transaction<'static, Postgres>>>>;
 
 pub struct PgPaymentUnitOfWork {
-    tx: SharedTransaction,
+    tx: SharedPgTransaction,
     repairs: PgRepairTxRepository,
     payments: PgPaymentTxRepository,
 }
 
 impl PgPaymentUnitOfWork {
     pub async fn begin(pool: &sqlx::PgPool) -> AppResult<Self> {
-        let tx = pool
-            .begin()
-            .await
-            .map_err(|error| repository_error("begin payment unit of work", error))?;
-        let tx = Arc::new(Mutex::new(Some(tx)));
+        let tx = SharedPgTransaction::begin(pool, "begin payment unit of work").await?;
 
         Ok(Self {
-            repairs: PgRepairTxRepository::new(Arc::clone(&tx)),
-            payments: PgPaymentTxRepository::new(Arc::clone(&tx)),
+            repairs: PgRepairTxRepository::new(tx.clone()),
+            payments: PgPaymentTxRepository::new(tx.clone()),
             tx,
         })
     }
@@ -49,36 +39,21 @@ impl PaymentUnitOfWork for PgPaymentUnitOfWork {
     }
 
     async fn commit(&self) -> AppResult<()> {
-        let tx = self.tx.lock().await.take().ok_or_else(|| {
-            repository_error(
-                "commit payment unit of work",
-                "transaction is already finished",
-            )
-        })?;
-
-        tx.commit()
-            .await
-            .map_err(|error| repository_error("commit payment unit of work", error))
+        self.tx.commit("commit payment unit of work").await
     }
 
     async fn rollback(&self) -> AppResult<()> {
-        let Some(tx) = self.tx.lock().await.take() else {
-            return Ok(());
-        };
-
-        tx.rollback()
-            .await
-            .map_err(|error| repository_error("rollback payment unit of work", error))
+        self.tx.rollback("rollback payment unit of work").await
     }
 }
 
 #[derive(Clone)]
 pub struct PgRepairTxRepository {
-    tx: SharedTransaction,
+    tx: SharedPgTransaction,
 }
 
 impl PgRepairTxRepository {
-    fn new(tx: SharedTransaction) -> Self {
+    fn new(tx: SharedPgTransaction) -> Self {
         Self { tx }
     }
 }
@@ -86,10 +61,8 @@ impl PgRepairTxRepository {
 #[async_trait]
 impl RepairRepository for PgRepairTxRepository {
     async fn get(&self, id: RepairId) -> AppResult<Option<Repair>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard
-            .as_mut()
-            .ok_or_else(|| repository_error("get repair", "transaction is already finished"))?;
+        let mut guard = self.tx.lock("get repair").await?;
+        let tx = guard.transaction()?;
 
         let row = sqlx::query_as::<_, RepairRow>(
             r#"
@@ -123,10 +96,8 @@ impl RepairRepository for PgRepairTxRepository {
     }
 
     async fn save(&self, repair: &Repair) -> AppResult<()> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard
-            .as_mut()
-            .ok_or_else(|| repository_error("save repair", "transaction is already finished"))?;
+        let mut guard = self.tx.lock("save repair").await?;
+        let tx = guard.transaction()?;
 
         sqlx::query(
             r#"
@@ -190,10 +161,8 @@ impl RepairRepository for PgRepairTxRepository {
     }
 
     async fn list_by_client(&self, client_id: ClientId) -> AppResult<Vec<Repair>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| {
-            repository_error("list repairs by client", "transaction is already finished")
-        })?;
+        let mut guard = self.tx.lock("list repairs by client").await?;
+        let tx = guard.transaction()?;
 
         let rows = sqlx::query_as::<_, RepairRow>(
             r#"
@@ -228,10 +197,8 @@ impl RepairRepository for PgRepairTxRepository {
     }
 
     async fn list_by_car(&self, car_id: CarId) -> AppResult<Vec<Repair>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| {
-            repository_error("list repairs by car", "transaction is already finished")
-        })?;
+        let mut guard = self.tx.lock("list repairs by car").await?;
+        let tx = guard.transaction()?;
 
         let rows = sqlx::query_as::<_, RepairRow>(
             r#"
@@ -270,13 +237,8 @@ impl RepairRepository for PgRepairTxRepository {
         from: DateTime<Utc>,
         to: DateTime<Utc>,
     ) -> AppResult<Vec<Repair>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| {
-            repository_error(
-                "list completed repairs between",
-                "transaction is already finished",
-            )
-        })?;
+        let mut guard = self.tx.lock("list completed repairs between").await?;
+        let tx = guard.transaction()?;
 
         let rows = sqlx::query_as::<_, RepairRow>(
             r#"
@@ -316,11 +278,11 @@ impl RepairRepository for PgRepairTxRepository {
 
 #[derive(Clone)]
 pub struct PgPaymentTxRepository {
-    tx: SharedTransaction,
+    tx: SharedPgTransaction,
 }
 
 impl PgPaymentTxRepository {
-    fn new(tx: SharedTransaction) -> Self {
+    fn new(tx: SharedPgTransaction) -> Self {
         Self { tx }
     }
 }
@@ -328,10 +290,8 @@ impl PgPaymentTxRepository {
 #[async_trait]
 impl PaymentRepository for PgPaymentTxRepository {
     async fn get(&self, id: PaymentId) -> AppResult<Option<Payment>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard
-            .as_mut()
-            .ok_or_else(|| repository_error("get payment", "transaction is already finished"))?;
+        let mut guard = self.tx.lock("get payment").await?;
+        let tx = guard.transaction()?;
 
         let row = sqlx::query_as::<_, PaymentRow>(
             r#"
@@ -359,10 +319,8 @@ impl PaymentRepository for PgPaymentTxRepository {
     async fn save(&self, payment: &Payment) -> AppResult<()> {
         let amount = payment.amount();
 
-        let mut guard = self.tx.lock().await;
-        let tx = guard
-            .as_mut()
-            .ok_or_else(|| repository_error("save payment", "transaction is already finished"))?;
+        let mut guard = self.tx.lock("save payment").await?;
+        let tx = guard.transaction()?;
 
         sqlx::query(
             r#"
@@ -402,10 +360,8 @@ impl PaymentRepository for PgPaymentTxRepository {
     }
 
     async fn list_by_repair(&self, repair_id: RepairId) -> AppResult<Vec<Payment>> {
-        let mut guard = self.tx.lock().await;
-        let tx = guard.as_mut().ok_or_else(|| {
-            repository_error("list payments by repair", "transaction is already finished")
-        })?;
+        let mut guard = self.tx.lock("list payments by repair").await?;
+        let tx = guard.transaction()?;
 
         let rows = sqlx::query_as::<_, PaymentRow>(
             r#"
