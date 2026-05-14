@@ -456,8 +456,8 @@ fn parse_part_draft(session: &SessionData) -> Result<ParsedPart, String> {
     let name = PartName::parse(name).map_err(|error| part_error_message(error.into()))?;
     let sku = PartSku::parse(session.part_draft.sku.as_deref().unwrap_or(""))
         .map_err(|error| part_error_message(error.into()))?;
-    let quantity = parse_quantity(quantity)
-        .map_err(|_| messages::parts::invalid_quantity().to_string())?;
+    let quantity =
+        parse_quantity(quantity).map_err(|_| messages::parts::invalid_quantity().to_string())?;
     let min_quantity = parse_quantity(min_quantity)
         .map_err(|_| messages::parts::invalid_quantity().to_string())?;
     let unit_price =

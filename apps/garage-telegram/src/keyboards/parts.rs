@@ -23,10 +23,7 @@ pub fn menu() -> InlineKeyboardMarkup {
 }
 
 pub fn add_part_back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "⬅️ К складу",
-        "nav:stock",
-    )]])
+    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")]])
 }
 
 pub fn add_part_confirm() -> InlineKeyboardMarkup {
@@ -61,7 +58,10 @@ pub fn search_results(parts: &[Part]) -> InlineKeyboardMarkup {
         "🔍 Найти снова",
         "part:search",
     )]);
-    rows.push(vec![InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")]);
+    rows.push(vec![InlineKeyboardButton::callback(
+        "⬅️ К складу",
+        "nav:stock",
+    )]);
 
     InlineKeyboardMarkup::new(rows)
 }
@@ -84,7 +84,10 @@ pub fn low_stock(parts: &[Part]) -> InlineKeyboardMarkup {
         );
     }
 
-    rows.push(vec![InlineKeyboardButton::callback("📦 Склад", "nav:stock")]);
+    rows.push(vec![InlineKeyboardButton::callback(
+        "📦 Склад",
+        "nav:stock",
+    )]);
     rows.push(vec![InlineKeyboardButton::callback(
         "🏠 Главное меню",
         "nav:main",
