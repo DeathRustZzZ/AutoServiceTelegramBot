@@ -112,6 +112,19 @@ where
         Ok(repair)
     }
 
+    /// Меняет стоимость работ по открытому ремонту.
+    pub async fn set_labor_price(
+        &self,
+        repair_id: RepairId,
+        labor_price: Money,
+        now: DateTime<Utc>,
+    ) -> AppResult<Repair> {
+        let mut repair = require_repair(&self.repairs, repair_id).await?;
+        repair.update_prices(labor_price, repair.parts_price(), repair.parts_cost(), now)?;
+        self.repairs.save(&repair).await?;
+        Ok(repair)
+    }
+
     /// Завершает ремонт.
     ///
     /// Статусный переход и проверка `completed_at >= started_at` находятся в

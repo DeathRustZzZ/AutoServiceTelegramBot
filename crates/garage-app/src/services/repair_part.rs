@@ -89,7 +89,7 @@ where
         &self,
         command: UsePartInRepairCommand,
     ) -> AppResult<UsePartInRepairResult> {
-        let repair = require_repair(&self.repairs, command.repair_id).await?;
+        let mut repair = require_repair(&self.repairs, command.repair_id).await?;
         if repair.is_cancelled() {
             return Err(AppError::CannotUsePartForCancelledRepair {
                 repair_id: command.repair_id,
@@ -110,6 +110,18 @@ where
             command.now,
         )?;
 
+        let parts_price = repair.parts_price().checked_add(
+            command
+                .unit_price
+                .checked_mul_u32(command.quantity.value())?,
+        )?;
+        let parts_cost = repair.parts_cost().checked_add(
+            command
+                .unit_cost
+                .checked_mul_u32(command.quantity.value())?,
+        )?;
+        repair.update_prices(repair.labor_price(), parts_price, parts_cost, command.now)?;
+
         let movement = StockMovement::new(
             StockMovementId::new(),
             command.part_id,
@@ -124,6 +136,7 @@ where
         self.parts.save(&part).await?;
         self.repair_parts.save(&repair_part).await?;
         self.stock_movements.save(&movement).await?;
+        self.repairs.save(&repair).await?;
 
         Ok(UsePartInRepairResult {
             repair_part,

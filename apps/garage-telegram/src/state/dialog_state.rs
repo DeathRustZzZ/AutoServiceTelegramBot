@@ -7,6 +7,9 @@ pub enum DialogState {
     AddBooking(AddBookingStep),
     AddPart(AddPartStep),
     StartRepair(StartRepairStep),
+    RecordPayment(RecordPaymentStep),
+    UseRepairPart(UseRepairPartStep),
+    SetRepairLabor(SetRepairLaborStep),
     SearchClient,
     SearchPart,
     SetPartStock(SetPartStockStep),
@@ -61,4 +64,27 @@ pub enum StartRepairStep {
     AwaitingDescription,
     AwaitingNotes,
     Confirm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecordPaymentStep {
+    AwaitingAmount,
+    AwaitingMethod,
+    AwaitingComment,
+    Confirm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UseRepairPartStep {
+    AwaitingPartSearch,
+    AwaitingPartSelection,
+    AwaitingQuantity,
+    AwaitingUnitPrice,
+    AwaitingComment,
+    Confirm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SetRepairLaborStep {
+    AwaitingAmount,
 }

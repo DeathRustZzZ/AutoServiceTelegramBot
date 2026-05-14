@@ -15,6 +15,7 @@ pub async fn run(container: AppContainer) {
     let repairs = container.repairs();
     let repair_parts = container.repair_parts();
     let payments = container.payments();
+    let stock_movements = container.stock_movements();
 
     Dispatcher::builder(bot, routing::schema())
         .dependencies(dptree::deps![
@@ -27,6 +28,7 @@ pub async fn run(container: AppContainer) {
             repairs,
             repair_parts,
             payments,
+            stock_movements,
             container
         ])
         .enable_ctrlc_handler()

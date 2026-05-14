@@ -54,11 +54,16 @@ pub fn app_error(error: &AppError) -> String {
         AppError::CarDoesNotBelongToClient { .. } => {
             "Этот автомобиль не принадлежит выбранному клиенту.".to_string()
         }
+        AppError::CannotUsePartForCancelledRepair { .. } => {
+            "Нельзя добавить запчасть в отменённый ремонт.".to_string()
+        }
         AppError::Client(_) => "Проверьте имя или заметку клиента.".to_string(),
         AppError::Car(error) => car_error(error),
         AppError::Booking(_) => "Проверьте причину обращения или заметку.".to_string(),
         AppError::Part(error) => part_error(error),
         AppError::Repair(error) => repair_error(error),
+        AppError::Payment(_) => "Проверьте сумму, способ оплаты или комментарий.".to_string(),
+        AppError::StockMovement(_) => "Проверьте комментарий к списанию запчасти.".to_string(),
         AppError::Money(_) => {
             "Цена должна быть указана в копейках, например 2500 для 25.00 BYN.".to_string()
         }
@@ -83,8 +88,10 @@ fn repair_error(error: &garage_domain::RepairError) -> String {
         | garage_domain::RepairError::CannotModifyFinalRepair { .. } => {
             "Этот ремонт уже закрыт.".to_string()
         }
-        garage_domain::RepairError::PaymentExceedsTotal { .. }
-        | garage_domain::RepairError::CannotRecordPaymentForCancelledRepair
+        garage_domain::RepairError::PaymentExceedsTotal { .. } => {
+            "Сумма оплаты больше остатка по ремонту.".to_string()
+        }
+        garage_domain::RepairError::CannotRecordPaymentForCancelledRepair
         | garage_domain::RepairError::ZeroPayment => {
             "Не удалось выполнить финансовую операцию по ремонту.".to_string()
         }

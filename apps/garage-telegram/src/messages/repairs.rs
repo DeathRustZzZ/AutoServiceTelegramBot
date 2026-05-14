@@ -1,8 +1,8 @@
 use chrono::{DateTime, Duration, Utc};
 use garage_app::{BookingDetails, RepairDetails};
-use garage_domain::{Car, Money, Repair};
+use garage_domain::{Car, Money, Part, Repair};
 
-use crate::state::StartRepairDraft;
+use crate::state::{RecordPaymentDraft, StartRepairDraft, UseRepairPartDraft};
 
 pub fn menu() -> &'static str {
     "🔧 Ремонты"
@@ -63,6 +63,120 @@ pub fn missing_draft() -> &'static str {
     "Данные ремонта устарели. Откройте запись и начните ремонт заново."
 }
 
+pub fn ask_payment_amount() -> &'static str {
+    "Введите сумму оплаты в копейках BYN:"
+}
+
+pub fn ask_labor_price() -> &'static str {
+    "Введите стоимость работ в копейках BYN:"
+}
+
+pub fn labor_price_updated_card(details: &RepairDetails) -> String {
+    repair_card_with_title("Стоимость работ обновлена\n\n🔧 Ремонт", details)
+}
+
+pub fn ask_payment_method() -> &'static str {
+    "Введите способ оплаты: cash, card, transfer, crypto или other"
+}
+
+pub fn ask_payment_comment() -> &'static str {
+    "Введите комментарий или отправьте -:"
+}
+
+pub fn confirm_payment(details: &RepairDetails, draft: &RecordPaymentDraft) -> String {
+    format!(
+        "Проверьте оплату:\n\nРемонт: {} — {}\nСумма: {}\nМетод: {}\nКомментарий: {}",
+        car_title(&details.car),
+        details.client.name().as_str(),
+        draft
+            .amount
+            .as_deref()
+            .and_then(|value| value.parse::<i64>().ok())
+            .map(format_minor_byn)
+            .unwrap_or_else(|| "не указана".to_string()),
+        payment_method_title(draft.method.as_deref().unwrap_or("не указан")),
+        draft.comment.as_deref().unwrap_or("нет")
+    )
+}
+
+pub fn payment_recorded_card(details: &RepairDetails) -> String {
+    repair_card_with_title("Оплата принята\n\n🔧 Ремонт", details)
+}
+
+pub fn ask_repair_part_query() -> &'static str {
+    "Введите название или SKU запчасти:"
+}
+
+pub fn repair_part_search_results(query: &str, parts: &[Part]) -> String {
+    let mut text = format!("Выберите запчасть для ремонта: {query}");
+
+    for (index, part) in parts.iter().enumerate() {
+        text.push_str(&format!(
+            "\n\n{}. {} — SKU {} — остаток {} шт — цена {}",
+            index + 1,
+            part.name().as_str(),
+            part.sku().map(|sku| sku.as_str()).unwrap_or("нет"),
+            part.quantity().value(),
+            format_money(part.unit_price())
+        ));
+    }
+
+    text
+}
+
+pub fn no_repair_part_results(query: &str) -> String {
+    format!("По запросу `{query}` запчасти не найдены.")
+}
+
+pub fn ask_repair_part_quantity() -> &'static str {
+    "Введите количество:"
+}
+
+pub fn ask_repair_part_unit_price() -> &'static str {
+    "Введите цену продажи за единицу в копейках BYN:"
+}
+
+pub fn ask_repair_part_comment() -> &'static str {
+    "Введите комментарий или отправьте -:"
+}
+
+pub fn confirm_repair_part(
+    details: &RepairDetails,
+    part: &Part,
+    draft: &UseRepairPartDraft,
+) -> String {
+    format!(
+        "Проверьте запчасть для ремонта:\n\nРемонт: {} — {}\nЗапчасть: {}\nКоличество: {} шт\nОстаток сейчас: {} шт\nЦена продажи: {}\nКомментарий: {}",
+        car_title(&details.car),
+        details.client.name().as_str(),
+        part.name().as_str(),
+        draft.quantity.as_deref().unwrap_or("не указано"),
+        part.quantity().value(),
+        draft
+            .unit_price
+            .as_deref()
+            .and_then(|value| value.parse::<i64>().ok())
+            .map(format_minor_byn)
+            .unwrap_or_else(|| "не указана".to_string()),
+        draft.comment.as_deref().unwrap_or("нет")
+    )
+}
+
+pub fn repair_part_added_card(details: &RepairDetails, result_message: Option<&str>) -> String {
+    match result_message {
+        Some(message) => format!("{message}\n\n{}", repair_card(details)),
+        None => repair_card_with_title("Запчасть добавлена\n\n🔧 Ремонт", details),
+    }
+}
+
+pub fn invalid_money() -> &'static str {
+    "Введите сумму в копейках, например 5000 для 50.00 BYN."
+}
+
+pub fn invalid_quantity() -> &'static str {
+    "Введите количество числом, например 1."
+}
+
 fn repair_card_with_title(title: &str, details: &RepairDetails) -> String {
     let repair = &details.repair;
     format!(
@@ -115,6 +229,21 @@ fn format_money(value: Money) -> String {
         value.amount_minor() % 100,
         value.currency()
     )
+}
+
+fn format_minor_byn(value: i64) -> String {
+    format!("{}.{:02} BYN", value / 100, value % 100)
+}
+
+fn payment_method_title(value: &str) -> &'static str {
+    match value {
+        "cash" => "Наличные",
+        "card" => "Карта",
+        "transfer" | "bank_transfer" => "Перевод",
+        "crypto" => "Crypto",
+        "other" => "Другое",
+        _ => "не указан",
+    }
 }
 
 fn format_local_datetime(value: DateTime<Utc>, offset_hours: i32) -> String {

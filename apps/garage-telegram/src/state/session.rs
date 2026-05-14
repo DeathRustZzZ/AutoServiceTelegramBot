@@ -2,8 +2,8 @@ use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::types::MessageId;
 
 use crate::state::{
-    BookingDraft, CarDraft, ClientDraft, DialogState, PartDraft, SetPartStockDraft,
-    StartRepairDraft,
+    BookingDraft, CarDraft, ClientDraft, DialogState, PartDraft, RecordPaymentDraft,
+    SetPartStockDraft, SetRepairLaborDraft, StartRepairDraft, UseRepairPartDraft,
 };
 
 pub type Storage = InMemStorage<SessionData>;
@@ -19,6 +19,9 @@ pub struct SessionData {
     pub part_draft: PartDraft,
     pub set_part_stock_draft: SetPartStockDraft,
     pub start_repair_draft: StartRepairDraft,
+    pub record_payment_draft: RecordPaymentDraft,
+    pub use_repair_part_draft: UseRepairPartDraft,
+    pub set_repair_labor_draft: SetRepairLaborDraft,
     pub last_menu_msg_id: Option<MessageId>,
 }
 
@@ -31,5 +34,8 @@ impl SessionData {
         self.part_draft.reset();
         self.set_part_stock_draft.reset();
         self.start_repair_draft.reset();
+        self.record_payment_draft.reset();
+        self.use_repair_part_draft.reset();
+        self.set_repair_labor_draft.reset();
     }
 }

@@ -87,6 +87,24 @@ pub async fn handle(
             )
             .await;
         }
+        DialogState::RecordPayment(step) => {
+            return handlers::repairs::handle_payment_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
+        DialogState::UseRepairPart(step) => {
+            return handlers::repairs::handle_repair_part_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
+        DialogState::SetRepairLabor(step) => {
+            return handlers::repairs::handle_set_labor_text(
+                bot, dialogue, msg, container, session, step, text,
+            )
+            .await;
+        }
         DialogState::Idle => {}
     }
 

@@ -11,7 +11,7 @@ use garage_domain::{
 
 use crate::{
     AppError, AppResult, PartRepository, RepairPartRepository, RepairPartUnitOfWork,
-    StockMovementRepository,
+    RepairRepository, StockMovementRepository,
 };
 
 use super::{
@@ -38,7 +38,7 @@ where
         &self,
         command: UsePartInRepairCommand,
     ) -> AppResult<UsePartInRepairResult> {
-        let repair = require_repair(self.uow.repairs(), command.repair_id).await?;
+        let mut repair = require_repair(self.uow.repairs(), command.repair_id).await?;
         if repair.is_cancelled() {
             return Err(AppError::CannotUsePartForCancelledRepair {
                 repair_id: command.repair_id,
@@ -58,6 +58,18 @@ where
             command.unit_price,
             command.now,
         )?;
+
+        let parts_price = repair.parts_price().checked_add(
+            command
+                .unit_price
+                .checked_mul_u32(command.quantity.value())?,
+        )?;
+        let parts_cost = repair.parts_cost().checked_add(
+            command
+                .unit_cost
+                .checked_mul_u32(command.quantity.value())?,
+        )?;
+        repair.update_prices(repair.labor_price(), parts_price, parts_cost, command.now)?;
 
         let movement = StockMovement::new(
             StockMovementId::new(),
@@ -81,6 +93,11 @@ where
         }
 
         if let Err(error) = self.uow.stock_movements().save(&movement).await {
+            self.uow.rollback().await.ok();
+            return Err(error);
+        }
+
+        if let Err(error) = self.uow.repairs().save(&repair).await {
             self.uow.rollback().await.ok();
             return Err(error);
         }
