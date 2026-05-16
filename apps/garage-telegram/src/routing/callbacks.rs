@@ -6,7 +6,7 @@ use crate::handlers;
 use crate::messages;
 use crate::state::{HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::send_reply_keyboard_notice;
+use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn handle(
     bot: Bot,
@@ -365,7 +365,7 @@ pub async fn handle(
         "nav:main" => {
             let mut session = session;
             session.reset_dialog();
-            send_reply_keyboard_notice(&bot, chat_id, crate::keyboards::reply::global_navigation())
+            set_reply_keyboard_silent(&bot, chat_id, crate::keyboards::reply::global_navigation())
                 .await;
             render_screen(
                 &bot,
@@ -382,7 +382,7 @@ pub async fn handle(
         "nav:cancel" => {
             let mut session = session;
             session.reset_dialog();
-            send_reply_keyboard_notice(&bot, chat_id, crate::keyboards::reply::global_navigation())
+            set_reply_keyboard_silent(&bot, chat_id, crate::keyboards::reply::global_navigation())
                 .await;
             render_screen(
                 &bot,

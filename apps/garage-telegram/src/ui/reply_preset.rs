@@ -1,16 +1,28 @@
 use teloxide::prelude::*;
 use teloxide::types::KeyboardMarkup;
 
-pub async fn send_reply_keyboard_notice(bot: &Bot, chat_id: ChatId, keyboard: KeyboardMarkup) {
-    if let Err(error) = bot
-        .send_message(chat_id, "Панель обновлена.")
+pub async fn set_reply_keyboard_silent(bot: &Bot, chat_id: ChatId, keyboard: KeyboardMarkup) {
+    match bot
+        .send_message(chat_id, "\u{2060}")
         .reply_markup(keyboard)
         .await
     {
-        tracing::warn!(
-            chat_id = chat_id.0,
-            error = %error,
-            "failed to send reply keyboard preset"
-        );
+        Ok(message) => {
+            if let Err(error) = bot.delete_message(chat_id, message.id).await {
+                tracing::debug!(
+                    chat_id = chat_id.0,
+                    message_id = message.id.0,
+                    error = %error,
+                    "failed to delete reply keyboard service message"
+                );
+            }
+        }
+        Err(error) => {
+            tracing::warn!(
+                chat_id = chat_id.0,
+                error = %error,
+                "failed to send reply keyboard service message"
+            );
+        }
     }
 }

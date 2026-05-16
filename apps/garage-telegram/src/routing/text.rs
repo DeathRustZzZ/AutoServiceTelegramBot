@@ -7,7 +7,7 @@ use crate::messages;
 use crate::state::{DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::cleanup::delete_user_message_silent;
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::send_reply_keyboard_notice;
+use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn handle(
     bot: Bot,
@@ -36,7 +36,7 @@ pub async fn handle(
     if text.as_str() == "/cancel" {
         let mut session = session;
         session.reset_dialog();
-        send_reply_keyboard_notice(&bot, msg.chat.id, reply::global_navigation()).await;
+        set_reply_keyboard_silent(&bot, msg.chat.id, reply::global_navigation()).await;
         return render_screen(
             &bot,
             &dialogue,
@@ -55,7 +55,7 @@ pub async fn handle(
         } else {
             messages::main::main_menu()
         };
-        send_reply_keyboard_notice(&bot, msg.chat.id, reply::global_navigation()).await;
+        set_reply_keyboard_silent(&bot, msg.chat.id, reply::global_navigation()).await;
         return render_screen(
             &bot,
             &dialogue,

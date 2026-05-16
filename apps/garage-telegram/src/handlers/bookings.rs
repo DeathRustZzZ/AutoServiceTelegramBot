@@ -10,7 +10,7 @@ use crate::keyboards;
 use crate::messages;
 use crate::state::{AddBookingStep, DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::send_reply_keyboard_notice;
+use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 const SEARCH_LIMIT: u32 = 5;
 
@@ -21,7 +21,7 @@ pub async fn show_menu(
     mut session: SessionData,
 ) -> HandlerResult {
     session.reset_dialog();
-    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::bookings_navigation()).await;
+    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::bookings_navigation()).await;
 
     render_screen(
         bot,
@@ -126,7 +126,7 @@ pub async fn begin_add(
 ) -> HandlerResult {
     session.booking_draft.reset();
     session.dialog = DialogState::AddBooking(AddBookingStep::AwaitingClientSearch);
-    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::dialog_navigation()).await;
+    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -411,7 +411,7 @@ pub async fn confirm(
     };
 
     session.reset_dialog();
-    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::bookings_navigation()).await;
+    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::bookings_navigation()).await;
     render_booking_card(bot, dialogue, chat_id, session, container, details, true).await
 }
 
