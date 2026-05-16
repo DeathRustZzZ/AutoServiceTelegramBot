@@ -8,6 +8,7 @@ use crate::keyboards;
 use crate::messages;
 use crate::state::{AddClientStep, DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
+use crate::ui::reply_preset::send_reply_keyboard_notice;
 
 const PAGE_SIZE: u32 = 5;
 
@@ -18,6 +19,7 @@ pub async fn show_menu(
     mut session: SessionData,
 ) -> HandlerResult {
     session.reset_dialog();
+    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::clients_navigation()).await;
 
     render_screen(
         bot,
@@ -40,6 +42,7 @@ pub async fn begin_add(
 ) -> HandlerResult {
     session.client_draft.reset();
     session.dialog = DialogState::AddClient(AddClientStep::AwaitingName);
+    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -96,6 +99,7 @@ pub async fn begin_search(
     mut session: SessionData,
 ) -> HandlerResult {
     session.dialog = DialogState::SearchClient;
+    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -193,6 +197,7 @@ pub async fn handle_search_text(
     };
 
     session.reset_dialog();
+    send_reply_keyboard_notice(&bot, msg.chat.id, keyboards::reply::clients_navigation()).await;
 
     let text = if clients.is_empty() {
         messages::clients::empty_search_results(&query)
@@ -226,6 +231,7 @@ pub async fn show_card(
     };
 
     session.reset_dialog();
+    send_reply_keyboard_notice(bot, chat_id, keyboards::reply::clients_navigation()).await;
 
     render_screen(
         bot,
@@ -308,7 +314,7 @@ pub async fn confirm(
         session,
         Screen::new(
             messages::clients::created_card(&client),
-            keyboards::clients::clients_menu(),
+            keyboards::clients::client_card(&client),
         ),
     )
     .await

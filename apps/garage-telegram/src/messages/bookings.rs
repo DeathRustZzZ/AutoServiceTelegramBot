@@ -5,7 +5,7 @@ use garage_domain::{Booking, Car, Client};
 use crate::state::BookingDraft;
 
 pub fn menu() -> &'static str {
-    "📅 Записи. Выберите действие."
+    "📅 Записи. Выберите действие на нижней панели."
 }
 
 pub fn empty_today() -> &'static str {

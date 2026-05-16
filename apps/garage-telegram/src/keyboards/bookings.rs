@@ -3,20 +3,7 @@ use garage_domain::{Booking, Car, Client, ClientId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 pub fn menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "📋 Сегодня",
-            "booking:today",
-        )],
-        [InlineKeyboardButton::callback(
-            "📋 Завтра",
-            "booking:tomorrow",
-        )],
-        [InlineKeyboardButton::callback(
-            "➕ Создать запись",
-            "booking:add",
-        )],
-    ])
+    super::empty_inline_keyboard()
 }
 
 pub fn list(items: &[BookingDetails]) -> InlineKeyboardMarkup {
@@ -37,19 +24,11 @@ pub fn list(items: &[BookingDetails]) -> InlineKeyboardMarkup {
         );
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "➕ Создать запись",
-        "booking:add",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
 pub fn empty_list() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "➕ Создать запись",
-        "booking:add",
-    )]])
+    super::empty_inline_keyboard()
 }
 
 pub fn client_search_results(clients: &[Client]) -> InlineKeyboardMarkup {

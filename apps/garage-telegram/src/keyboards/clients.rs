@@ -2,20 +2,7 @@ use garage_domain::Client;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 pub fn clients_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "➕ Добавить клиента",
-            "client:add",
-        )],
-        [InlineKeyboardButton::callback(
-            "📋 Список клиентов",
-            "client:list:0",
-        )],
-        [InlineKeyboardButton::callback(
-            "🔍 Найти клиента",
-            "client:search",
-        )],
-    ])
+    super::empty_inline_keyboard()
 }
 
 pub fn add_client_back_to_clients() -> InlineKeyboardMarkup {
@@ -71,10 +58,7 @@ pub fn clients_list(clients: &[Client], page: usize, has_next: bool) -> InlineKe
 }
 
 pub fn empty_clients() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "➕ Добавить клиента",
-        "client:add",
-    )]])
+    super::empty_inline_keyboard()
 }
 
 pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {

@@ -5,7 +5,7 @@ use crate::state::PartDraft;
 use super::format::{format_byn_input, format_money};
 
 pub fn menu() -> &'static str {
-    "📦 Склад. Выберите действие."
+    "📦 Склад. Выберите действие на нижней панели."
 }
 
 pub fn ask_name() -> &'static str {

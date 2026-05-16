@@ -3,10 +3,7 @@ use garage_domain::{BookingId, Part, Repair, RepairId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 pub fn menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "🔥 Активные ремонты",
-        "repair:active",
-    )]])
+    super::empty_inline_keyboard()
 }
 
 pub fn active_list(items: &[RepairDetails]) -> InlineKeyboardMarkup {
