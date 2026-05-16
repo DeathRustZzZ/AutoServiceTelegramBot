@@ -7,7 +7,6 @@ use crate::messages;
 use crate::state::{DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::cleanup::delete_user_message_silent;
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn handle(
     bot: Bot,
@@ -36,32 +35,12 @@ pub async fn handle(
     if text.as_str() == "/cancel" {
         let mut session = session;
         session.reset_dialog();
-        set_reply_keyboard_silent(&bot, msg.chat.id, reply::global_navigation()).await;
         return render_screen(
             &bot,
             &dialogue,
             msg.chat.id,
             session,
             Screen::new("Действие отменено.", crate::keyboards::main::main_menu()),
-        )
-        .await;
-    }
-
-    if matches!(text.as_str(), reply::NAV_BACK | reply::NAV_CANCEL) {
-        let mut session = session;
-        session.reset_dialog();
-        let message = if text.as_str() == reply::NAV_CANCEL {
-            "Действие отменено."
-        } else {
-            messages::main::main_menu()
-        };
-        set_reply_keyboard_silent(&bot, msg.chat.id, reply::global_navigation()).await;
-        return render_screen(
-            &bot,
-            &dialogue,
-            msg.chat.id,
-            session,
-            Screen::new(message, crate::keyboards::main::main_menu()),
         )
         .await;
     }
@@ -85,51 +64,6 @@ pub async fn handle(
 
     if text.as_str() == reply::NAV_REPAIRS {
         return handlers::repairs::show_menu(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::CLIENT_ADD {
-        return handlers::clients::begin_add(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::CLIENT_LIST {
-        return handlers::clients::show_list(&bot, &dialogue, msg.chat.id, container, session, 0)
-            .await;
-    }
-
-    if text.as_str() == reply::CLIENT_SEARCH {
-        return handlers::clients::begin_search(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::BOOKING_TODAY {
-        return handlers::bookings::show_today(&bot, &dialogue, msg.chat.id, container, session)
-            .await;
-    }
-
-    if text.as_str() == reply::BOOKING_TOMORROW {
-        return handlers::bookings::show_tomorrow(&bot, &dialogue, msg.chat.id, container, session)
-            .await;
-    }
-
-    if text.as_str() == reply::BOOKING_ADD {
-        return handlers::bookings::begin_add(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::PART_ADD {
-        return handlers::parts::begin_add(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::PART_SEARCH {
-        return handlers::parts::begin_search(&bot, &dialogue, msg.chat.id, session).await;
-    }
-
-    if text.as_str() == reply::PART_LOW_STOCK {
-        return handlers::parts::show_low_stock(&bot, &dialogue, msg.chat.id, container, session)
-            .await;
-    }
-
-    if text.as_str() == reply::REPAIR_ACTIVE {
-        return handlers::repairs::show_active(&bot, &dialogue, msg.chat.id, container, session)
-            .await;
     }
 
     match session.dialog.clone() {
@@ -230,18 +164,6 @@ fn should_delete_user_message(text: &str, dialog: &DialogState) -> bool {
                 | reply::NAV_LOW_STOCK
                 | reply::NAV_REPAIRS
                 | reply::NAV_SEARCH
-                | reply::NAV_BACK
-                | reply::NAV_CANCEL
-                | reply::CLIENT_ADD
-                | reply::CLIENT_LIST
-                | reply::CLIENT_SEARCH
-                | reply::BOOKING_TODAY
-                | reply::BOOKING_TOMORROW
-                | reply::BOOKING_ADD
-                | reply::PART_ADD
-                | reply::PART_SEARCH
-                | reply::PART_LOW_STOCK
-                | reply::REPAIR_ACTIVE
         )
         || !matches!(dialog, DialogState::Idle)
 }

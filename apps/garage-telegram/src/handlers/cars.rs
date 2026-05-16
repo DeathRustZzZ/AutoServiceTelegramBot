@@ -8,7 +8,6 @@ use crate::keyboards;
 use crate::messages;
 use crate::state::{AddCarStep, DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn show_client_cars(
     bot: &Bot,
@@ -59,7 +58,6 @@ pub async fn begin_add(
     session.car_draft.reset();
     session.car_draft.client_id = Some(client_id);
     session.dialog = DialogState::AddCar(AddCarStep::AwaitingMake);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -190,7 +188,6 @@ pub async fn confirm(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::clients_navigation()).await;
 
     render_screen(
         bot,

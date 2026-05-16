@@ -11,7 +11,6 @@ use crate::state::{
 };
 use crate::ui::money_input::parse_byn_amount;
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn show_menu(
     bot: &Bot,
@@ -20,7 +19,6 @@ pub async fn show_menu(
     mut session: SessionData,
 ) -> HandlerResult {
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::parts_navigation()).await;
 
     render_screen(
         bot,
@@ -40,7 +38,6 @@ pub async fn begin_add(
 ) -> HandlerResult {
     session.part_draft.reset();
     session.dialog = DialogState::AddPart(AddPartStep::AwaitingName);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -208,7 +205,6 @@ pub async fn confirm(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::parts_navigation()).await;
 
     render_part_card(
         bot,
@@ -228,7 +224,6 @@ pub async fn begin_search(
     mut session: SessionData,
 ) -> HandlerResult {
     session.dialog = DialogState::SearchPart;
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -275,7 +270,6 @@ pub async fn handle_search_text(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(&bot, msg.chat.id, keyboards::reply::parts_navigation()).await;
 
     let text = if parts.is_empty() {
         messages::parts::empty_search_results(&query)
@@ -337,7 +331,6 @@ pub async fn show_card(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::parts_navigation()).await;
 
     render_part_card(
         bot,
@@ -359,7 +352,6 @@ pub async fn begin_set_stock(
 ) -> HandlerResult {
     session.set_part_stock_draft.part_id = Some(part_id);
     session.dialog = DialogState::SetPartStock(SetPartStockStep::AwaitingQuantity);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,

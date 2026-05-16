@@ -2,7 +2,20 @@ use garage_domain::Part;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 pub fn menu() -> InlineKeyboardMarkup {
-    super::empty_inline_keyboard()
+    InlineKeyboardMarkup::new([
+        [InlineKeyboardButton::callback(
+            "➕ Добавить запчасть",
+            "part:add",
+        )],
+        [InlineKeyboardButton::callback(
+            "🔍 Найти запчасть",
+            "part:search",
+        )],
+        [InlineKeyboardButton::callback(
+            "⚠️ Низкий остаток",
+            "part:low_stock",
+        )],
+    ])
 }
 
 pub fn add_part_back_to_menu() -> InlineKeyboardMarkup {
@@ -36,6 +49,11 @@ pub fn search_results(parts: &[Part]) -> InlineKeyboardMarkup {
                 .collect::<Vec<_>>(),
         );
     }
+
+    rows.push(vec![InlineKeyboardButton::callback(
+        "🔍 Найти снова",
+        "part:search",
+    )]);
 
     InlineKeyboardMarkup::new(rows)
 }

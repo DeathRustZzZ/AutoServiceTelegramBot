@@ -4,7 +4,6 @@ use crate::keyboards;
 use crate::messages;
 use crate::state::{HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn start(
     bot: Bot,
@@ -14,7 +13,9 @@ pub async fn start(
 ) -> HandlerResult {
     session.reset_dialog();
 
-    set_reply_keyboard_silent(&bot, msg.chat.id, keyboards::reply::global_navigation()).await;
+    bot.send_message(msg.chat.id, "Клавиатура обновлена.")
+        .reply_markup(keyboards::reply::global_navigation())
+        .await?;
 
     render_screen(
         &bot,

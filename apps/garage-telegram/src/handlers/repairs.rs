@@ -18,7 +18,6 @@ use crate::state::{
 };
 use crate::ui::money_input::{ensure_positive_money, parse_byn_amount};
 use crate::ui::render::{render_screen, Screen};
-use crate::ui::reply_preset::set_reply_keyboard_silent;
 
 pub async fn show_menu(
     bot: &Bot,
@@ -27,7 +26,6 @@ pub async fn show_menu(
     mut session: SessionData,
 ) -> HandlerResult {
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::repairs_navigation()).await;
 
     render_screen(
         bot,
@@ -106,7 +104,6 @@ pub async fn begin_start_from_booking(
     session.start_repair_draft.reset();
     session.start_repair_draft.booking_id = Some(booking_id);
     session.dialog = DialogState::StartRepair(StartRepairStep::AwaitingDescription);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -250,7 +247,6 @@ pub async fn confirm_start(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::repairs_navigation()).await;
 
     render_screen(
         bot,
@@ -283,7 +279,6 @@ pub async fn show_card(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::repairs_navigation()).await;
 
     render_screen(
         bot,
@@ -372,7 +367,6 @@ pub async fn begin_payment(
     session.record_payment_draft.reset();
     session.record_payment_draft.repair_id = Some(repair_id);
     session.dialog = DialogState::RecordPayment(RecordPaymentStep::AwaitingAmount);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -420,7 +414,6 @@ pub async fn begin_set_labor(
 
     session.set_repair_labor_draft.repair_id = Some(repair_id);
     session.dialog = DialogState::SetRepairLabor(SetRepairLaborStep::AwaitingAmount);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -488,7 +481,6 @@ pub async fn handle_set_labor_text(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(&bot, msg.chat.id, keyboards::reply::repairs_navigation()).await;
 
     render_screen(
         &bot,
@@ -715,7 +707,6 @@ pub async fn begin_add_part(
     session.use_repair_part_draft.reset();
     session.use_repair_part_draft.repair_id = Some(repair_id);
     session.dialog = DialogState::UseRepairPart(UseRepairPartStep::AwaitingPartSearch);
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::dialog_navigation()).await;
 
     render_screen(
         bot,
@@ -985,7 +976,6 @@ pub async fn confirm_repair_part(
     };
 
     session.reset_dialog();
-    set_reply_keyboard_silent(bot, chat_id, keyboards::reply::repairs_navigation()).await;
     let warning = stock_warning(&result);
 
     render_screen(

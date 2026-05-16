@@ -7,7 +7,7 @@ use crate::state::{RecordPaymentDraft, StartRepairDraft, UseRepairPartDraft};
 use super::format::{format_byn_input, format_money};
 
 pub fn menu() -> &'static str {
-    "🔧 Ремонты. Выберите действие на нижней панели."
+    "🔧 Ремонты. Выберите действие."
 }
 
 pub fn active_list(items: &[RepairDetails]) -> String {
