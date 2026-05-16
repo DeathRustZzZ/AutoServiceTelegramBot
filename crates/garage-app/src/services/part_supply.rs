@@ -13,7 +13,7 @@ use crate::{AppResult, PartRepository, PartSupplyRepository};
 
 use super::common::{require_part, require_supply};
 
-/// Application service для поставок.
+/// Прикладной сервис для поставок.
 pub struct PartSupplyService<Parts, Supplies> {
     parts: Parts,
     supplies: Supplies,

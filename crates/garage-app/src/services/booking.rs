@@ -15,7 +15,7 @@ use super::common::{
     require_car, require_client,
 };
 
-/// Read model для экрана/сообщения с деталями записи.
+/// Модель чтения для экрана/сообщения с деталями записи.
 ///
 /// Это application-level структура: она собирает несколько доменных агрегатов
 /// для удобства UI, но не становится новой доменной сущностью.
@@ -29,7 +29,7 @@ pub struct BookingDetails {
     pub car: Car,
 }
 
-/// Application service для записей на обслуживание.
+/// Прикладной сервис для записей на обслуживание.
 pub struct BookingService<Clients, Cars, Bookings> {
     clients: Clients,
     cars: Cars,
@@ -188,7 +188,7 @@ where
 
     /// Загружает запись вместе с клиентом и автомобилем.
     ///
-    /// Такой read model удобен Telegram UI: handler получает сразу все данные
+    /// Такая модель чтения удобна Telegram UI: handler получает сразу все данные
     /// для карточки записи, не зная о порядке загрузки агрегатов.
     pub async fn get_booking_details(&self, booking_id: BookingId) -> AppResult<BookingDetails> {
         let booking = require_booking(&self.bookings, booking_id).await?;

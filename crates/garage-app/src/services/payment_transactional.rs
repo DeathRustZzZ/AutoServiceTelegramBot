@@ -1,8 +1,8 @@
-//! Transactional variant of payment registration.
+//! Транзакционный вариант регистрации оплаты.
 //!
-//! The non-transactional `PaymentService` stays available for simple adapters
-//! and tests. This service uses a Unit of Work port so infra can later execute
-//! the same scenario inside one PostgreSQL transaction.
+//! Обычный `PaymentService` остается полезным для простых адаптеров и unit
+//! tests. Этот сервис выполняет тот же use case через Unit of Work, чтобы infra
+//! могла сохранить `Repair` и `Payment` в одной PostgreSQL-транзакции.
 
 use garage_domain::{Payment, PaymentId};
 
@@ -10,7 +10,7 @@ use crate::{AppResult, PaymentRepository, PaymentUnitOfWork, RepairRepository};
 
 use super::{common::require_repair, RecordPaymentCommand};
 
-/// Application service for transactional payment recording.
+/// Прикладной сервис для транзакционной регистрации оплаты.
 pub struct PaymentTransactionalService<Uow> {
     uow: Uow,
 }
@@ -19,16 +19,16 @@ impl<Uow> PaymentTransactionalService<Uow>
 where
     Uow: PaymentUnitOfWork,
 {
-    /// Creates a service over a transactional repository bundle.
+    /// Создает сервис поверх транзакционного набора репозиториев.
     pub fn new(uow: Uow) -> Self {
         Self { uow }
     }
 
-    /// Registers a payment and commits the transaction boundary.
+    /// Регистрирует оплату и фиксирует транзакционную границу.
     ///
-    /// Validation errors before the first write are returned directly. Once a
-    /// write or commit fails, the service asks the Unit of Work to roll back and
-    /// preserves the original error.
+    /// Ошибки валидации до первой записи возвращаются напрямую. Если падает
+    /// сохранение или commit, сервис запрашивает rollback и возвращает исходную
+    /// ошибку, потому что именно она объясняет причину отказа сценария.
     pub async fn record_payment(&self, command: RecordPaymentCommand) -> AppResult<Payment> {
         let mut repair = require_repair(self.uow.repairs(), command.repair_id).await?;
         repair.record_payment(command.amount, command.now)?;

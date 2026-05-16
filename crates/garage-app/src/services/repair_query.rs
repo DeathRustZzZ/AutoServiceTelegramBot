@@ -1,6 +1,6 @@
-//! Read-сценарии ремонтов.
+//! Сценарии чтения ремонтов.
 //!
-//! Query service собирает данные для UI из нескольких агрегатов, но не меняет
+//! Query-сервис собирает данные для UI из нескольких агрегатов, но не меняет
 //! доменное состояние и ничего не сохраняет в репозитории.
 
 use garage_domain::{Car, Client, Payment, Repair, RepairId, RepairPart};
@@ -22,7 +22,7 @@ pub struct RepairDetails {
     pub payments: Vec<Payment>,
 }
 
-/// Query service для чтения детальных данных ремонта.
+/// Query-сервис для чтения детальных данных ремонта.
 pub struct RepairQueryService<Clients, Cars, Repairs, RepairParts, Payments> {
     clients: Clients,
     cars: Cars,
@@ -40,7 +40,7 @@ where
     RepairParts: RepairPartRepository,
     Payments: PaymentRepository,
 {
-    /// Создает query service поверх repository ports.
+    /// Создает query-сервис поверх repository ports.
     pub fn new(
         clients: Clients,
         cars: Cars,
@@ -59,7 +59,7 @@ where
 
     /// Возвращает ремонт с клиентом, автомобилем, запчастями и оплатами.
     ///
-    /// Archived client/car здесь не запрещаются: details используются для
+    /// Архивные клиент или автомобиль здесь не запрещаются: details используются для
     /// истории и отображения уже существующих данных.
     pub async fn get_repair_details(&self, repair_id: RepairId) -> AppResult<RepairDetails> {
         let repair = require_repair(&self.repairs, repair_id).await?;

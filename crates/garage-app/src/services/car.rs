@@ -16,7 +16,7 @@ use crate::{AppResult, CarRepository, ClientRepository};
 
 use super::common::{ensure_car_belongs_to_client, require_car, require_client};
 
-/// Application service для автомобилей.
+/// Прикладной сервис для автомобилей.
 pub struct CarService<Clients, Cars> {
     clients: Clients,
     cars: Cars,

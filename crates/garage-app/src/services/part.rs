@@ -10,7 +10,7 @@ use crate::{AppResult, PartRepository};
 
 use super::common::require_part;
 
-/// Application service для складских позиций.
+/// Прикладной сервис для складских позиций.
 pub struct PartService<R> {
     parts: R,
 }

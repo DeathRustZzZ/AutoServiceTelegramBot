@@ -12,7 +12,7 @@ use crate::{AppResult, ClientRepository};
 
 use super::common::require_client;
 
-/// Application service для клиентов.
+/// Прикладной сервис для клиентов.
 ///
 /// Сервис зависит только от `ClientRepository`. Это важная граница: создание и
 /// редактирование клиента не требует знания о PostgreSQL, Telegram или других
@@ -33,7 +33,7 @@ where
     /// Создает клиента и сохраняет его.
     ///
     /// Метод принимает уже проверенные domain value objects. Разбор строк из
-    /// Telegram-команд должен происходить выше, до входа в application layer.
+    /// Telegram-команд должен происходить выше, до входа в прикладной слой.
     /// Здесь остается только orchestration: создать агрегат и сохранить его.
     pub async fn create_client(
         &self,

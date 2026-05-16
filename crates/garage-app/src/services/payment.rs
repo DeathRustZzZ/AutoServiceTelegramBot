@@ -28,7 +28,7 @@ pub struct RecordPaymentCommand {
     pub now: DateTime<Utc>,
 }
 
-/// Application service для истории оплат.
+/// Прикладной сервис для истории оплат.
 pub struct PaymentService<Repairs, Payments> {
     repairs: Repairs,
     payments: Payments,

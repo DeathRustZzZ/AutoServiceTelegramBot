@@ -1,3 +1,8 @@
+//! Порт хранения поставок запчастей.
+//!
+//! Поставка хранится отдельно от `Part`, чтобы не смешивать текущий остаток
+//! склада с историей ожидаемых и полученных пополнений.
+
 use async_trait::async_trait;
 use garage_domain::{PartId, PartSupply, PartSupplyId};
 use std::sync::Arc;

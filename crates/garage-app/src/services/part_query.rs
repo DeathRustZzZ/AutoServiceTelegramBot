@@ -1,6 +1,6 @@
-//! Read-сценарии складских позиций.
+//! Сценарии чтения складских позиций.
 //!
-//! Query service собирает карточку складской позиции вместе с историей движений
+//! Query-сервис собирает карточку складской позиции вместе с историей движений
 //! для UI и не мутирует доменные сущности.
 
 use garage_domain::{Part, PartId, StockMovement};
@@ -16,7 +16,7 @@ pub struct PartDetails {
     pub movements: Vec<StockMovement>,
 }
 
-/// Query service для чтения детальных данных складской позиции.
+/// Query-сервис для чтения детальных данных складской позиции.
 pub struct PartQueryService<Parts, StockMovements> {
     parts: Parts,
     stock_movements: StockMovements,
@@ -27,7 +27,7 @@ where
     Parts: PartRepository,
     StockMovements: StockMovementRepository,
 {
-    /// Создает query service поверх repository ports.
+    /// Создает query-сервис поверх repository ports.
     pub fn new(parts: Parts, stock_movements: StockMovements) -> Self {
         Self {
             parts,
@@ -37,7 +37,7 @@ where
 
     /// Возвращает складскую позицию вместе с историей движений.
     ///
-    /// Archived part здесь не запрещается: details используются для истории и
+    /// Архивная складская позиция здесь не запрещается: details используются для истории и
     /// отображения уже существующих данных.
     pub async fn get_part_details(&self, part_id: PartId) -> AppResult<PartDetails> {
         let part = require_part(&self.parts, part_id).await?;

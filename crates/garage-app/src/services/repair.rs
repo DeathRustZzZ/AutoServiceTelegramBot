@@ -33,7 +33,7 @@ pub struct StartRepairCommand {
     pub now: DateTime<Utc>,
 }
 
-/// Application service для ремонтов.
+/// Прикладной сервис для ремонтов.
 pub struct RepairService<Clients, Cars, Bookings, Repairs> {
     clients: Clients,
     cars: Cars,

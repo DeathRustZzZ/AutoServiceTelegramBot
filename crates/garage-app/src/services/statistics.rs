@@ -28,7 +28,7 @@ pub struct ProfitSummary {
     pub actual_profit: SignedMoney,
 }
 
-/// Application service для статистики.
+/// Прикладной сервис для статистики.
 pub struct StatisticsService<R> {
     repairs: R,
 }

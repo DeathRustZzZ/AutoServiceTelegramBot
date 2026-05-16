@@ -1,3 +1,8 @@
+//! Порт расписания визитов клиентов.
+//!
+//! Модуль описывает минимальные операции чтения и сохранения booking, которые
+//! нужны прикладным сценариям без знания о конкретной SQL-схеме.
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use garage_domain::{Booking, BookingId, CarId, ClientId};

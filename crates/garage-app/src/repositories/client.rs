@@ -1,3 +1,8 @@
+//! Порт хранения клиентов.
+//!
+//! Клиенты являются корневым справочником для большинства сценариев, поэтому
+//! контракт включает постраничный список, поиск и сохранение агрегата.
+
 use async_trait::async_trait;
 use garage_domain::{Client, ClientId};
 use std::sync::Arc;
@@ -20,7 +25,7 @@ pub trait ClientRepository: Send + Sync {
     async fn save(&self, client: &Client) -> AppResult<()>;
 }
 
-/// Делегирующая реализация для shared repository object.
+/// Делегирующая реализация для разделяемого объекта репозитория.
 #[async_trait]
 impl<T> ClientRepository for Arc<T>
 where

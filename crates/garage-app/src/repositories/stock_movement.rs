@@ -1,3 +1,8 @@
+//! Порт хранения движений склада.
+//!
+//! Движения объясняют изменение остатка и дают аудит склада, но не являются
+//! источником текущего количества: это ответственность агрегата `Part`.
+
 use async_trait::async_trait;
 use garage_domain::{PartId, StockMovement, StockMovementId};
 use std::sync::Arc;

@@ -1,3 +1,8 @@
+//! Порт хранения ремонтов.
+//!
+//! Ремонт является финансовым центром системы, поэтому контракт включает
+//! выборки по клиенту, автомобилю, активному статусу и завершенному периоду.
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use garage_domain::{CarId, ClientId, Repair, RepairId};

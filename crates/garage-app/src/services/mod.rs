@@ -1,7 +1,9 @@
-//! Application services and use cases.
+//! Прикладные сервисы и сценарии автосервиса.
 //!
-//! Services coordinate repositories and domain entities. They do not know
-//! anything about Telegram, SQLx or PostgreSQL.
+//! Сервисы координируют repository ports и доменные сущности. Здесь не должно
+//! быть Telegram, SQLx, PostgreSQL, форматирования сообщений или деталей UI.
+//! Вход в этот модуль - уже проверенные domain value objects и идентификаторы,
+//! выход - доменные агрегаты, модели чтения или `AppError`.
 
 mod common;
 

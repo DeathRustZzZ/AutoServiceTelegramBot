@@ -1,8 +1,8 @@
-//! Transactional variant of using a stock part in a repair.
+//! Транзакционный вариант списания складской запчасти в ремонт.
 //!
-//! This service mirrors `RepairPartService`, but writes through a Unit of Work
-//! so the changed stock, repair part line and stock movement can later be
-//! committed atomically by infrastructure.
+//! Сервис повторяет сценарий `RepairPartService`, но сохраняет изменения через
+//! Unit of Work. Так infra может атомарно зафиксировать новый остаток склада,
+//! строку использованной запчасти, движение склада и обновленные суммы ремонта.
 
 use garage_domain::{
     RepairPart, RepairPartId, StockMovement, StockMovementId, StockMovementReason,
@@ -19,7 +19,7 @@ use super::{
     UsePartInRepairCommand, UsePartInRepairResult,
 };
 
-/// Application service for transactional part usage.
+/// Прикладной сервис для транзакционного списания запчасти.
 pub struct RepairPartTransactionalService<Uow> {
     uow: Uow,
 }
@@ -28,12 +28,16 @@ impl<Uow> RepairPartTransactionalService<Uow>
 where
     Uow: RepairPartUnitOfWork,
 {
-    /// Creates a service over a transactional repository bundle.
+    /// Создает сервис поверх транзакционного набора репозиториев.
     pub fn new(uow: Uow) -> Self {
         Self { uow }
     }
 
-    /// Uses a stock part in a repair and commits the transaction boundary.
+    /// Списывает складскую запчасть в ремонт и фиксирует транзакционную границу.
+    ///
+    /// Все доменные проверки выполняются до первой записи. После начала
+    /// сохранений любая ошибка приводит к rollback, чтобы не оставить систему в
+    /// состоянии "склад списан, но строка ремонта или движение не созданы".
     pub async fn use_part_in_repair(
         &self,
         command: UsePartInRepairCommand,

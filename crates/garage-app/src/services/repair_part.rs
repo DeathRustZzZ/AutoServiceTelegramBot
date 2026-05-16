@@ -49,7 +49,7 @@ pub struct UsePartInRepairResult {
     pub is_out_of_stock: bool,
 }
 
-/// Application service для запчастей, использованных в ремонте.
+/// Прикладной сервис для запчастей, использованных в ремонте.
 pub struct RepairPartService<Repairs, Parts, RepairParts, StockMovements> {
     repairs: Repairs,
     parts: Parts,
