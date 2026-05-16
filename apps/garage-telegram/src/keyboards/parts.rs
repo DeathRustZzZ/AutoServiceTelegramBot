@@ -15,18 +15,11 @@ pub fn menu() -> InlineKeyboardMarkup {
             "⚠️ Низкий остаток",
             "part:low_stock",
         )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
     ])
 }
 
 pub fn add_part_back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")].to_vec(),
-        super::cancel_row(),
-    ])
+    InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
 pub fn add_part_confirm() -> InlineKeyboardMarkup {
@@ -35,7 +28,6 @@ pub fn add_part_confirm() -> InlineKeyboardMarkup {
             "✅ Сохранить",
             "part:confirm",
         )],
-        vec![InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")],
         super::cancel_row(),
     ])
 }
@@ -62,10 +54,6 @@ pub fn search_results(parts: &[Part]) -> InlineKeyboardMarkup {
         "🔍 Найти снова",
         "part:search",
     )]);
-    rows.push(vec![InlineKeyboardButton::callback(
-        "⬅️ К складу",
-        "nav:stock",
-    )]);
 
     InlineKeyboardMarkup::new(rows)
 }
@@ -88,15 +76,6 @@ pub fn low_stock(parts: &[Part]) -> InlineKeyboardMarkup {
         );
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "📦 Склад",
-        "nav:stock",
-    )]);
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
@@ -110,17 +89,9 @@ pub fn part_card(part: &Part) -> InlineKeyboardMarkup {
             "🔍 Найти ещё",
             "part:search",
         )],
-        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
     ])
 }
 
 pub fn back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback("⬅️ К складу", "nav:stock")].to_vec(),
-        super::cancel_row(),
-    ])
+    InlineKeyboardMarkup::new([super::cancel_row()])
 }

@@ -26,10 +26,6 @@ pub fn client_cars(client_id: ClientId, cars: &[Car]) -> InlineKeyboardMarkup {
         "⬅️ К клиенту",
         format!("client:open:{}", client_id.as_uuid()),
     )]);
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
 
     InlineKeyboardMarkup::new(rows)
 }
@@ -64,14 +60,8 @@ pub fn add_car_confirm(client_id: ClientId) -> InlineKeyboardMarkup {
 }
 
 pub fn car_card(client_id: ClientId) -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "⬅️ К авто клиента",
-            format!("client:cars:{}", client_id.as_uuid()),
-        )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
-    ])
+    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
+        "⬅️ К авто клиента",
+        format!("client:cars:{}", client_id.as_uuid()),
+    )]])
 }

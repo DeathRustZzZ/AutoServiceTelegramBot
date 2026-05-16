@@ -3,16 +3,10 @@ use garage_domain::{BookingId, Part, Repair, RepairId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 pub fn menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "🔥 Активные ремонты",
-            "repair:active",
-        )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
-    ])
+    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
+        "🔥 Активные ремонты",
+        "repair:active",
+    )]])
 }
 
 pub fn active_list(items: &[RepairDetails]) -> InlineKeyboardMarkup {
@@ -33,19 +27,11 @@ pub fn active_list(items: &[RepairDetails]) -> InlineKeyboardMarkup {
         );
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
 pub fn active_empty() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]])
+    super::empty_inline_keyboard()
 }
 
 pub fn start_confirm(booking_id: BookingId) -> InlineKeyboardMarkup {
@@ -88,27 +74,11 @@ pub fn repair_card(repair: &Repair) -> InlineKeyboardMarkup {
         )]);
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🔧 Ремонты",
-        "nav:repairs",
-    )]);
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
 pub fn back_to_menu() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "⬅️ К ремонтам",
-            "nav:repairs",
-        )]
-        .to_vec(),
-        super::cancel_row(),
-    ])
+    InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
 pub fn back_to_booking(booking_id: BookingId) -> InlineKeyboardMarkup {

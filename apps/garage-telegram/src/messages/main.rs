@@ -1,5 +1,5 @@
 pub fn main_menu() -> &'static str {
-    "Главное меню"
+    "Главное меню. Используйте нижнюю клавиатуру для выбора раздела."
 }
 
 pub fn not_implemented(section: &str) -> String {

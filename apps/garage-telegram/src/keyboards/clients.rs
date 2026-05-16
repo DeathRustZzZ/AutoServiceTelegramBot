@@ -15,22 +15,11 @@ pub fn clients_menu() -> InlineKeyboardMarkup {
             "🔍 Найти клиента",
             "client:search",
         )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
     ])
 }
 
 pub fn add_client_back_to_clients() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "⬅️ К клиентам",
-            "nav:clients",
-        )]
-        .to_vec(),
-        super::cancel_row(),
-    ])
+    InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
 pub fn add_client_confirm() -> InlineKeyboardMarkup {
@@ -38,10 +27,6 @@ pub fn add_client_confirm() -> InlineKeyboardMarkup {
         vec![InlineKeyboardButton::callback(
             "✅ Сохранить",
             "client:confirm",
-        )],
-        vec![InlineKeyboardButton::callback(
-            "⬅️ К клиентам",
-            "nav:clients",
         )],
         super::cancel_row(),
     ])
@@ -82,25 +67,14 @@ pub fn clients_list(clients: &[Client], page: usize, has_next: bool) -> InlineKe
         rows.push(pagination);
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
 pub fn empty_clients() -> InlineKeyboardMarkup {
-    InlineKeyboardMarkup::new([
-        [InlineKeyboardButton::callback(
-            "➕ Добавить клиента",
-            "client:add",
-        )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
-        )],
-    ])
+    InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
+        "➕ Добавить клиента",
+        "client:add",
+    )]])
 }
 
 pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {
@@ -121,15 +95,6 @@ pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {
         );
     }
 
-    rows.push(vec![InlineKeyboardButton::callback(
-        "⬅️ К клиентам",
-        "nav:clients",
-    )]);
-    rows.push(vec![InlineKeyboardButton::callback(
-        "🏠 Главное меню",
-        "nav:main",
-    )]);
-
     InlineKeyboardMarkup::new(rows)
 }
 
@@ -144,14 +109,6 @@ pub fn client_card(client: &Client) -> InlineKeyboardMarkup {
         [InlineKeyboardButton::callback(
             "➕ Добавить авто",
             format!("car:add:{client_id}"),
-        )],
-        [InlineKeyboardButton::callback(
-            "⬅️ К клиентам",
-            "nav:clients",
-        )],
-        [InlineKeyboardButton::callback(
-            "🏠 Главное меню",
-            "nav:main",
         )],
     ])
 }

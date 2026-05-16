@@ -3,7 +3,7 @@ use garage_domain::Client;
 use crate::state::ClientDraft;
 
 pub fn menu() -> &'static str {
-    "Клиенты"
+    "👥 Клиенты. Выберите действие."
 }
 
 pub fn list_page(clients: &[Client], page: usize) -> String {
