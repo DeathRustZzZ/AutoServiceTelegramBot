@@ -1,3 +1,10 @@
+//! Маршрутизация текстовых сообщений.
+//!
+//! Модуль сначала обрабатывает глобальные команды и кнопки нижней клавиатуры,
+//! затем делегирует ввод активному диалогу из `SessionData`. Это позволяет
+//! держать multi-step формы в handler'ах доменных разделов, а не смешивать их
+//! в одном большом parser'е.
+
 use teloxide::prelude::*;
 
 use crate::container::AppContainer;
@@ -8,6 +15,10 @@ use crate::state::{DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::cleanup::delete_user_message_silent;
 use crate::ui::render::{render_screen, Screen};
 
+/// Обрабатывает входящее текстовое сообщение Telegram.
+///
+/// Сообщения пользователя удаляются там, где бот перерисовывает единый экран:
+/// так чат не превращается в длинную историю промежуточных шагов формы.
 pub async fn handle(
     bot: Bot,
     dialogue: UserDialogue,
@@ -153,6 +164,7 @@ pub async fn handle(
     }
 }
 
+/// Определяет, нужно ли удалить исходное сообщение пользователя после обработки.
 fn should_delete_user_message(text: &str, dialog: &DialogState) -> bool {
     matches!(text, "/start" | "/cancel")
         || matches!(

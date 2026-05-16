@@ -1,14 +1,24 @@
+//! Отрисовка основного Telegram-экрана.
+//!
+//! Бот старается работать как одноэкранное приложение: вместо отправки новой
+//! карточки на каждый шаг он редактирует последнее меню. Если Telegram не дает
+//! отредактировать сообщение, модуль отправляет новый экран и сохраняет его id.
+
 use teloxide::prelude::*;
 use teloxide::types::{ChatId, InlineKeyboardMarkup};
 
 use crate::state::{HandlerResult, SessionData, UserDialogue};
 
+/// Описание экрана, который должен увидеть пользователь.
 pub struct Screen {
+    /// Markdown не используется: текст передается как обычная Telegram-строка.
     pub text: String,
+    /// Inline-клавиатура с действиями текущего экрана.
     pub keyboard: InlineKeyboardMarkup,
 }
 
 impl Screen {
+    /// Создает экран из текста и inline-клавиатуры.
     pub fn new(text: impl Into<String>, keyboard: InlineKeyboardMarkup) -> Self {
         Self {
             text: text.into(),
@@ -17,6 +27,10 @@ impl Screen {
     }
 }
 
+/// Редактирует последний экран или отправляет новый, если редактирование невозможно.
+///
+/// Метод также сохраняет обновленную `SessionData`, поэтому handler'ы должны
+/// вызывать его в конце перехода состояния.
 pub async fn render_screen(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -53,6 +67,7 @@ pub async fn render_screen(
     Ok(())
 }
 
+/// Отправляет новое экранное сообщение без обновления session state.
 pub async fn send_menu_message(
     bot: &Bot,
     chat_id: ChatId,

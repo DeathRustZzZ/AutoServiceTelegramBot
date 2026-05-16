@@ -1,3 +1,8 @@
+//! Handler команды `/start`.
+//!
+//! Команда обновляет нижнюю reply-клавиатуру и возвращает пользователя на
+//! главный экран, не создавая доменных данных.
+
 use teloxide::prelude::*;
 
 use crate::keyboards;
@@ -5,6 +10,7 @@ use crate::messages;
 use crate::state::{HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
 
+/// Обрабатывает `/start` и сбрасывает активный диалог.
 pub async fn start(
     bot: Bot,
     dialogue: UserDialogue,

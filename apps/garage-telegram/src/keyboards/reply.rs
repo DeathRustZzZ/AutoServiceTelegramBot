@@ -1,3 +1,8 @@
+//! Нижняя reply-клавиатура глобальной навигации.
+//!
+//! Эти кнопки приходят как обычный текст, поэтому их значения являются частью
+//! routing-контракта `routing::text`.
+
 use teloxide::types::{KeyboardButton, KeyboardMarkup};
 
 pub const NAV_BOOKINGS: &str = "📅 Записи";
@@ -8,6 +13,7 @@ pub const NAV_LOW_STOCK: &str = "⚠️ Остатки";
 pub const NAV_REPAIRS: &str = "🔧 Ремонты";
 pub const NAV_SEARCH: &str = "🔍 Поиск";
 
+/// Создает persistent клавиатуру с основными разделами автосервиса.
 pub fn global_navigation() -> KeyboardMarkup {
     KeyboardMarkup::new(vec![
         vec![

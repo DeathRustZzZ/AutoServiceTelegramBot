@@ -1,3 +1,10 @@
+//! Handler'ы ремонта.
+//!
+//! Ремонт включает несколько критичных сценариев: старт из booking, изменение
+//! работ, прием оплаты и списание запчастей. Handler собирает ввод и вызывает
+//! транзакционные методы `AppContainer` там, где сценарий меняет несколько
+//! агрегатов.
+
 use chrono::Utc;
 use garage_app::{
     AppError, BookingDetails, RecordPaymentCommand, StartRepairCommand, UsePartInRepairCommand,
@@ -19,6 +26,7 @@ use crate::state::{
 use crate::ui::money_input::{ensure_positive_money, parse_byn_amount};
 use crate::ui::render::{render_screen, Screen};
 
+/// Показывает меню ремонтного раздела.
 pub async fn show_menu(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -37,6 +45,7 @@ pub async fn show_menu(
     .await
 }
 
+/// Показывает активные ремонты с клиентом и автомобилем.
 pub async fn show_active(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -70,6 +79,7 @@ pub async fn show_active(
     render_screen(bot, dialogue, chat_id, session, screen).await
 }
 
+/// Начинает запуск ремонта из запланированной записи.
 pub async fn begin_start_from_booking(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -118,6 +128,7 @@ pub async fn begin_start_from_booking(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы запуска ремонта.
 pub async fn handle_start_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -202,6 +213,7 @@ pub async fn handle_start_text(
     }
 }
 
+/// Подтверждает запуск ремонта и создает его через `RepairService`.
 pub async fn confirm_start(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -261,6 +273,7 @@ pub async fn confirm_start(
     .await
 }
 
+/// Показывает карточку ремонта.
 pub async fn show_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -293,6 +306,7 @@ pub async fn show_card(
     .await
 }
 
+/// Завершает ремонт.
 pub async fn complete(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -313,6 +327,7 @@ pub async fn complete(
     show_card(bot, dialogue, chat_id, container, session, repair.id()).await
 }
 
+/// Отменяет ремонт.
 pub async fn cancel(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -333,6 +348,7 @@ pub async fn cancel(
     show_card(bot, dialogue, chat_id, container, session, repair.id()).await
 }
 
+/// Начинает форму приема оплаты.
 pub async fn begin_payment(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -381,6 +397,7 @@ pub async fn begin_payment(
     .await
 }
 
+/// Начинает форму изменения стоимости работ.
 pub async fn begin_set_labor(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -428,6 +445,7 @@ pub async fn begin_set_labor(
     .await
 }
 
+/// Обрабатывает ввод новой стоимости работ.
 pub async fn handle_set_labor_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -495,6 +513,7 @@ pub async fn handle_set_labor_text(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы приема оплаты.
 pub async fn handle_payment_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -623,6 +642,7 @@ pub async fn handle_payment_text(
     }
 }
 
+/// Подтверждает оплату и выполняет транзакционный сценарий.
 pub async fn confirm_payment(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -673,6 +693,7 @@ pub async fn confirm_payment(
     .await
 }
 
+/// Начинает форму списания запчасти в ремонт.
 pub async fn begin_add_part(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -721,6 +742,7 @@ pub async fn begin_add_part(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы списания запчасти.
 pub async fn handle_repair_part_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -914,6 +936,7 @@ pub async fn handle_repair_part_text(
     }
 }
 
+/// Выбирает найденную запчасть для списания в ремонт.
 pub async fn select_part_for_repair(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -939,6 +962,7 @@ pub async fn select_part_for_repair(
     .await
 }
 
+/// Подтверждает списание запчасти и выполняет транзакционный сценарий.
 pub async fn confirm_repair_part(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -991,6 +1015,7 @@ pub async fn confirm_repair_part(
     .await
 }
 
+/// Разбирает черновик запуска ремонта в команду прикладного слоя.
 fn parse_start_draft(
     session: &SessionData,
     details: &BookingDetails,
@@ -1022,6 +1047,7 @@ fn parse_start_draft(
     })
 }
 
+/// Загружает запись, сохраненную в черновике запуска ремонта.
 async fn load_draft_booking(
     container: &AppContainer,
     session: &SessionData,
@@ -1037,6 +1063,7 @@ async fn load_draft_booking(
         .map(Some)
 }
 
+/// Разбирает черновик оплаты в команду прикладного слоя.
 fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, String> {
     let Some(repair_id) = session.record_payment_draft.repair_id else {
         return Err(draft_error());
@@ -1072,6 +1099,7 @@ fn parse_payment_draft(session: &SessionData) -> Result<RecordPaymentCommand, St
     })
 }
 
+/// Разбирает черновик списания запчасти в команду прикладного слоя.
 async fn parse_repair_part_draft(
     container: &AppContainer,
     session: &SessionData,
@@ -1120,6 +1148,7 @@ async fn parse_repair_part_draft(
     })
 }
 
+/// Загружает ремонт для формы оплаты или изменения работ.
 async fn load_payment_repair(
     container: &AppContainer,
     session: &SessionData,
@@ -1135,6 +1164,7 @@ async fn load_payment_repair(
         .map(Some)
 }
 
+/// Загружает ремонт и запчасть из черновика списания.
 async fn load_repair_part_draft(
     container: &AppContainer,
     session: &SessionData,
@@ -1155,6 +1185,7 @@ async fn load_repair_part_draft(
     Ok(Some((details, part)))
 }
 
+/// Показывает ошибку устаревшего или неполного черновика ремонта.
 async fn render_missing_draft(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -1176,6 +1207,7 @@ async fn render_missing_draft(
     .await
 }
 
+/// Показывает прикладную ошибку на экране ремонта.
 async fn render_app_error(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -1196,11 +1228,13 @@ async fn render_app_error(
     .await
 }
 
+/// Превращает пользовательский `-` или пустую строку в `None`.
 fn optional_string(input: String) -> Option<String> {
     let value = input.trim();
     (!value.is_empty() && value != "-").then(|| value.to_string())
 }
 
+/// Разбирает строго положительное количество запчастей.
 fn parse_positive_quantity(input: &str) -> Result<PartQuantity, ()> {
     let value = input.trim().parse::<u32>().map_err(|_| ())?;
     if value == 0 {
@@ -1209,6 +1243,7 @@ fn parse_positive_quantity(input: &str) -> Result<PartQuantity, ()> {
     Ok(PartQuantity::new(value))
 }
 
+/// Разбирает способ оплаты из пользовательской строки.
 fn parse_payment_method(input: &str) -> Result<PaymentMethod, ()> {
     match input.trim().to_lowercase().as_str() {
         "cash" | "наличные" => Ok(PaymentMethod::Cash),
@@ -1220,6 +1255,7 @@ fn parse_payment_method(input: &str) -> Result<PaymentMethod, ()> {
     }
 }
 
+/// Возвращает предупреждение о состоянии склада после списания.
 fn stock_warning(result: &UsePartInRepairResult) -> Option<String> {
     if result.is_out_of_stock {
         Some(format!(
@@ -1236,6 +1272,7 @@ fn stock_warning(result: &UsePartInRepairResult) -> Option<String> {
     }
 }
 
+/// Возвращает клавиатуру возврата из формы оплаты.
 fn payment_back_keyboard(repair_id: &Option<RepairId>) -> teloxide::types::InlineKeyboardMarkup {
     match repair_id {
         Some(repair_id) => keyboards::repairs::back_to_repair(*repair_id),
@@ -1243,6 +1280,7 @@ fn payment_back_keyboard(repair_id: &Option<RepairId>) -> teloxide::types::Inlin
     }
 }
 
+/// Возвращает клавиатуру возврата из формы списания запчасти.
 fn repair_part_back_keyboard(
     repair_id: &Option<RepairId>,
 ) -> teloxide::types::InlineKeyboardMarkup {
@@ -1252,6 +1290,7 @@ fn repair_part_back_keyboard(
     }
 }
 
+/// Возвращает клавиатуру возврата из формы запуска ремонта.
 fn start_back_keyboard(booking_id: &Option<BookingId>) -> teloxide::types::InlineKeyboardMarkup {
     match booking_id {
         Some(booking_id) => keyboards::repairs::back_to_booking(*booking_id),
@@ -1259,6 +1298,7 @@ fn start_back_keyboard(booking_id: &Option<BookingId>) -> teloxide::types::Inlin
     }
 }
 
+/// Возвращает общий текст ошибки поврежденного черновика.
 fn draft_error() -> String {
     messages::repairs::missing_draft().to_string()
 }

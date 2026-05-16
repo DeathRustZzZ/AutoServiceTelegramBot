@@ -1,3 +1,9 @@
+//! Handler'ы складского раздела.
+//!
+//! Модуль отвечает за создание запчастей, поиск, карточку позиции, низкие
+//! остатки и ручную корректировку количества. Денежные строки разбираются в
+//! BYN перед вызовом `PartService`.
+
 use chrono::Utc;
 use garage_app::AppError;
 use garage_domain::{Money, Part, PartId, PartName, PartNotes, PartQuantity, PartSku};
@@ -12,6 +18,7 @@ use crate::state::{
 use crate::ui::money_input::parse_byn_amount;
 use crate::ui::render::{render_screen, Screen};
 
+/// Показывает меню складского раздела.
 pub async fn show_menu(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -30,6 +37,7 @@ pub async fn show_menu(
     .await
 }
 
+/// Начинает форму создания складской позиции.
 pub async fn begin_add(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -52,6 +60,7 @@ pub async fn begin_add(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы создания запчасти.
 pub async fn handle_add_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -166,6 +175,7 @@ pub async fn handle_add_text(
     render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
 }
 
+/// Подтверждает создание запчасти и сохраняет ее через `PartService`.
 pub async fn confirm(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -217,6 +227,7 @@ pub async fn confirm(
     .await
 }
 
+/// Переводит пользователя в режим поиска запчасти.
 pub async fn begin_search(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -238,6 +249,7 @@ pub async fn begin_search(
     .await
 }
 
+/// Обрабатывает текст поискового запроса запчасти.
 pub async fn handle_search_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -287,6 +299,7 @@ pub async fn handle_search_text(
     .await
 }
 
+/// Показывает список позиций с низким остатком.
 pub async fn show_low_stock(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -317,6 +330,7 @@ pub async fn show_low_stock(
     .await
 }
 
+/// Показывает карточку складской позиции.
 pub async fn show_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -343,6 +357,7 @@ pub async fn show_card(
     .await
 }
 
+/// Начинает форму ручной корректировки остатка.
 pub async fn begin_set_stock(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -366,6 +381,7 @@ pub async fn begin_set_stock(
     .await
 }
 
+/// Обрабатывает ввод нового фактического остатка.
 pub async fn handle_set_stock_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -440,6 +456,7 @@ struct ParsedPart {
     notes: Option<PartNotes>,
 }
 
+/// Разбирает черновик запчасти в доменные value objects.
 fn parse_part_draft(session: &SessionData) -> Result<ParsedPart, String> {
     let Some(name) = session.part_draft.name.as_deref() else {
         return Err(messages::parts::missing_required_fields().to_string());
@@ -478,6 +495,7 @@ fn parse_part_draft(session: &SessionData) -> Result<ParsedPart, String> {
     })
 }
 
+/// Разбирает пользовательское количество.
 fn parse_quantity(input: &str) -> Result<PartQuantity, ()> {
     input
         .trim()
@@ -486,19 +504,23 @@ fn parse_quantity(input: &str) -> Result<PartQuantity, ()> {
         .map_err(|_| ())
 }
 
+/// Разбирает пользовательскую цену в BYN.
 fn parse_price(input: &str) -> Result<Money, ()> {
     parse_byn_amount(input).map_err(|_| ())
 }
 
+/// Превращает пользовательский `-` или пустую строку в `None`.
 fn optional_string(input: String) -> Option<String> {
     let value = input.trim();
     (!value.is_empty() && value != "-").then(|| value.to_string())
 }
 
+/// Преобразует прикладную ошибку склада в пользовательский текст.
 fn part_error_message(error: AppError) -> String {
     crate::handlers::errors::app_error_message(&error)
 }
 
+/// Отрисовывает карточку запчасти после загрузки актуального состояния.
 async fn render_part_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -517,6 +539,7 @@ async fn render_part_card(
     .await
 }
 
+/// Показывает прикладную ошибку на складском экране.
 async fn render_app_error(
     bot: &Bot,
     dialogue: &UserDialogue,

@@ -1,3 +1,9 @@
+//! Handler'ы автомобилей клиента.
+//!
+//! Автомобиль в Telegram UI всегда открывается в контексте владельца. Handler
+//! повторно загружает клиента и автомобиль перед показом или сохранением, чтобы
+//! устаревшие кнопки не позволяли изменить чужую или удаленную сущность.
+
 use chrono::Utc;
 use garage_app::AppError;
 use garage_domain::{Car, CarId, CarMake, CarModel, CarYear, Client, ClientId, LicensePlate, Vin};
@@ -9,6 +15,7 @@ use crate::messages;
 use crate::state::{AddCarStep, DialogState, HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
 
+/// Показывает автомобили выбранного клиента.
 pub async fn show_client_cars(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -43,6 +50,7 @@ pub async fn show_client_cars(
     render_screen(bot, dialogue, chat_id, session, screen).await
 }
 
+/// Начинает форму добавления автомобиля к клиенту.
 pub async fn begin_add(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -72,6 +80,7 @@ pub async fn begin_add(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы добавления автомобиля.
 pub async fn handle_add_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -156,6 +165,7 @@ pub async fn handle_add_text(
     render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
 }
 
+/// Подтверждает создание автомобиля и сохраняет его через `CarService`.
 pub async fn confirm(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -202,6 +212,7 @@ pub async fn confirm(
     .await
 }
 
+/// Показывает карточку автомобиля.
 pub async fn show_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -232,6 +243,7 @@ pub async fn show_card(
     .await
 }
 
+/// Создает автомобиль из текущего черновика session state.
 async fn create_car(container: AppContainer, session: &SessionData) -> Result<Car, String> {
     let draft = &session.car_draft;
     let client_id = draft
@@ -267,10 +279,12 @@ async fn create_car(container: AppContainer, session: &SessionData) -> Result<Ca
         .map_err(|error| crate::handlers::errors::app_error_message(&error))
 }
 
+/// Загружает клиента для проверки контекста автомобиля.
 async fn load_client(container: &AppContainer, client_id: ClientId) -> Result<Client, AppError> {
     container.client_service().get_client(client_id).await
 }
 
+/// Показывает прикладную ошибку на экране автомобиля.
 async fn render_app_error(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -291,6 +305,7 @@ async fn render_app_error(
     .await
 }
 
+/// Показывает ошибку устаревшего или поврежденного черновика автомобиля.
 async fn render_broken_draft(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -310,6 +325,7 @@ async fn render_broken_draft(
     .await
 }
 
+/// Достает обязательную строку из черновика.
 fn required<'a>(value: Option<&'a str>, message: &'static str) -> Result<&'a str, String> {
     value
         .map(str::trim)
@@ -317,6 +333,7 @@ fn required<'a>(value: Option<&'a str>, message: &'static str) -> Result<&'a str
         .ok_or_else(|| message.to_string())
 }
 
+/// Разбирает опциональный год выпуска.
 fn parse_year(value: Option<&str>) -> Result<Option<CarYear>, String> {
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return Ok(None);
@@ -330,6 +347,7 @@ fn parse_year(value: Option<&str>) -> Result<Option<CarYear>, String> {
         .map_err(|error| crate::handlers::errors::app_error_message(&AppError::Car(error)))
 }
 
+/// Разбирает опциональный государственный номер.
 fn parse_license_plate(value: Option<&str>) -> Result<Option<LicensePlate>, String> {
     match value {
         Some(value) => LicensePlate::parse(value)
@@ -338,6 +356,7 @@ fn parse_license_plate(value: Option<&str>) -> Result<Option<LicensePlate>, Stri
     }
 }
 
+/// Разбирает опциональный VIN.
 fn parse_vin(value: Option<&str>) -> Result<Option<Vin>, String> {
     match value {
         Some(value) => Vin::parse(value)
@@ -346,6 +365,7 @@ fn parse_vin(value: Option<&str>) -> Result<Option<Vin>, String> {
     }
 }
 
+/// Превращает пользовательский `-` или пустую строку в `None`.
 fn optional_string(value: String) -> Option<String> {
     let value = value.trim();
     (!value.is_empty() && value != "-").then(|| value.to_string())

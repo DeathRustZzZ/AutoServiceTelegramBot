@@ -1,3 +1,10 @@
+//! Маршрутизация inline callback data.
+//!
+//! Callback data здесь рассматривается как компактный публичный протокол UI:
+//! префикс выбирает действие, хвост часто содержит UUID доменной сущности.
+//! Handler обязан валидировать UUID и показывать пользователю понятную ошибку
+//! для устаревших или поврежденных кнопок.
+
 use teloxide::prelude::*;
 use uuid::Uuid;
 
@@ -7,6 +14,10 @@ use crate::messages;
 use crate::state::{HandlerResult, SessionData, UserDialogue};
 use crate::ui::render::{render_screen, Screen};
 
+/// Обрабатывает inline callback query и делегирует действие нужному handler'у.
+///
+/// Функция намеренно оставляет разбор callback data централизованным: так
+/// проще контролировать совместимость клавиатур и маршрутов.
 pub async fn handle(
     bot: Bot,
     dialogue: UserDialogue,
@@ -471,6 +482,7 @@ pub async fn handle(
     }
 }
 
+/// Показывает пользователю ошибку поврежденного callback data.
 async fn invalid_callback(
     bot: &Bot,
     dialogue: &UserDialogue,

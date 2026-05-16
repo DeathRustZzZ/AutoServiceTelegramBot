@@ -1,49 +1,71 @@
+//! Пользовательские тексты ошибок.
+//!
+//! Handler'ы и прикладный слой возвращают технически точные ошибки, а этот
+//! модуль переводит их в короткие сообщения для Telegram. Детали для логов
+//! остаются в `handlers::errors`.
+
 use garage_app::AppError;
 
+/// Возвращает текст для неизвестного пользовательского сообщения.
 pub fn unknown_text() -> &'static str {
     "Не понял сообщение. Используйте кнопки навигации."
 }
 
+/// Возвращает текст для callback query без доступного сообщения.
 pub fn callback_without_message() -> &'static str {
     "Не удалось обновить экран: сообщение недоступно."
 }
 
+/// Возвращает текст ошибки отсутствующего имени клиента.
 pub fn missing_client_name() -> &'static str {
     "Введите имя клиента перед сохранением."
 }
 
+/// Возвращает текст ошибки отсутствующего телефона клиента.
 pub fn missing_client_phone() -> &'static str {
     "Введите телефон клиента перед сохранением."
 }
 
+/// Возвращает текст для поврежденной или устаревшей inline-кнопки.
 pub fn invalid_callback() -> &'static str {
     "Действие устарело или повреждено."
 }
 
+/// Возвращает текст ошибки ненайденного клиента.
 pub fn client_not_found() -> &'static str {
     "Клиент не найден. Возможно, он был удалён или архивирован."
 }
 
+/// Возвращает текст ошибки ненайденного автомобиля.
 pub fn car_not_found() -> &'static str {
     "Автомобиль не найден. Возможно, он был удалён или архивирован."
 }
 
+/// Возвращает текст ошибки ненайденной записи.
 pub fn booking_not_found() -> &'static str {
     "Запись не найдена. Возможно, она была удалена или устарела."
 }
 
+/// Возвращает текст ошибки ненайденной запчасти.
 pub fn part_not_found() -> &'static str {
     "Запчасть не найдена. Возможно, она была удалена или архивирована."
 }
 
+/// Возвращает текст ошибки ненайденного ремонта.
 pub fn repair_not_found() -> &'static str {
     "Ремонт не найден. Возможно, он был удалён или устарел."
 }
 
+/// Возвращает общий текст ошибки хранилища.
 pub fn clients_load_failed() -> &'static str {
     "Не удалось загрузить или сохранить данные. Попробуйте позже."
 }
 
+/// Преобразует `AppError` в безопасный пользовательский текст.
+///
+/// Здесь намеренно не показываются SQL, operation names и внутренние id:
+/// пользователь должен получить понятное действие, а инженер - подробности в
+/// логах handler'а.
 pub fn app_error(error: &AppError) -> String {
     match error {
         AppError::ClientNotFound(_) => client_not_found().to_string(),
@@ -73,6 +95,7 @@ pub fn app_error(error: &AppError) -> String {
     }
 }
 
+/// Преобразует ошибку домена ремонта в пользовательский текст.
 fn repair_error(error: &garage_domain::RepairError) -> String {
     match error {
         garage_domain::RepairError::EmptyDescription => {
@@ -107,6 +130,7 @@ fn repair_error(error: &garage_domain::RepairError) -> String {
     }
 }
 
+/// Преобразует ошибку домена автомобиля в пользовательский текст.
 fn car_error(error: &garage_domain::CarError) -> String {
     match error {
         garage_domain::CarError::EmptyMake => "Введите марку автомобиля.".to_string(),
@@ -132,6 +156,7 @@ fn car_error(error: &garage_domain::CarError) -> String {
     }
 }
 
+/// Преобразует ошибку домена запчасти в пользовательский текст.
 fn part_error(error: &garage_domain::PartError) -> String {
     match error {
         garage_domain::PartError::EmptyName => "Проверьте название запчасти.".to_string(),

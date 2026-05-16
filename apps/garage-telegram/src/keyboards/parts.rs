@@ -1,6 +1,12 @@
+//! Inline-клавиатуры складского раздела.
+//!
+//! Поиск и список низких остатков ведут к одной карточке запчасти. Из карточки
+//! можно выполнить ручную корректировку фактического остатка.
+
 use garage_domain::Part;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+/// Создает меню складского раздела.
 pub fn menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -18,10 +24,12 @@ pub fn menu() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру возврата/отмены из формы запчасти.
 pub fn add_part_back_to_menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
+/// Создает клавиатуру подтверждения создания запчасти.
 pub fn add_part_confirm() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -32,6 +40,7 @@ pub fn add_part_confirm() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру результатов поиска запчастей.
 pub fn search_results(parts: &[Part]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -58,6 +67,7 @@ pub fn search_results(parts: &[Part]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру списка позиций с низким остатком.
 pub fn low_stock(parts: &[Part]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -79,6 +89,7 @@ pub fn low_stock(parts: &[Part]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру карточки складской позиции.
 pub fn part_card(part: &Part) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -92,6 +103,7 @@ pub fn part_card(part: &Part) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру возврата/отмены к меню склада.
 pub fn back_to_menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([super::cancel_row()])
 }

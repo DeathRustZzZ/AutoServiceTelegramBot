@@ -1,14 +1,30 @@
+//! Разбор денежных значений, введенных пользователем.
+//!
+//! Telegram handler'ы принимают суммы как человекочитаемые BYN-строки:
+//! `25`, `25.5`, `25.50` или `25,50`. Здесь они нормализуются в доменный
+//! `Money`, чтобы остальной код не занимался ad-hoc parsing.
+
 use garage_domain::Money;
 
+/// Причина отказа при разборе суммы.
+///
+/// Ошибки намеренно достаточно грубые: UI показывает короткие сообщения, а
+/// доменный слой остается источником окончательных денежных инвариантов.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoneyInputError {
+    /// Пользователь отправил пустую строку.
     Empty,
+    /// Отрицательные суммы в текущих Telegram-сценариях не принимаются.
     Negative,
+    /// Строка не похожа на число.
     InvalidFormat,
+    /// Указано больше двух знаков после разделителя.
     TooManyFractionDigits,
+    /// Значение не прошло ограничения `Money`.
     Domain,
 }
 
+/// Разбирает пользовательскую BYN-сумму в minor units доменной модели.
 pub fn parse_byn_amount(input: &str) -> Result<Money, MoneyInputError> {
     let input = input.trim();
     if input.is_empty() {
@@ -56,6 +72,10 @@ pub fn parse_byn_amount(input: &str) -> Result<Money, MoneyInputError> {
     Money::byn_minor(total_minor).map_err(|_| MoneyInputError::Domain)
 }
 
+/// Проверяет, что уже разобранная сумма строго больше нуля.
+///
+/// Нулевая сумма может быть допустима для отображения или промежуточного
+/// parsing, но не для оплаты или цены продажи.
 pub fn ensure_positive_money(money: Money) -> Result<Money, MoneyInputError> {
     if money.amount_minor() > 0 {
         Ok(money)

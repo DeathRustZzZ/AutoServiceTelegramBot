@@ -1,7 +1,14 @@
+//! Inline-клавиатуры раздела ремонтов.
+//!
+//! Набор действий зависит от статуса ремонта: активный ремонт можно изменять,
+//! оплачивать, пополнять запчастями и закрывать, а финальный ремонт остается
+//! read-only экраном.
+
 use garage_app::RepairDetails;
 use garage_domain::{BookingId, Part, Repair, RepairId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+/// Создает меню ремонтного раздела.
 pub fn menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
         "🔥 Активные ремонты",
@@ -9,6 +16,7 @@ pub fn menu() -> InlineKeyboardMarkup {
     )]])
 }
 
+/// Создает клавиатуру списка активных ремонтов.
 pub fn active_list(items: &[RepairDetails]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -30,10 +38,12 @@ pub fn active_list(items: &[RepairDetails]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру пустого списка активных ремонтов.
 pub fn active_empty() -> InlineKeyboardMarkup {
     super::empty_inline_keyboard()
 }
 
+/// Создает клавиатуру подтверждения запуска ремонта из записи.
 pub fn start_confirm(booking_id: BookingId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -48,6 +58,7 @@ pub fn start_confirm(booking_id: BookingId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру карточки ремонта.
 pub fn repair_card(repair: &Repair) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -77,10 +88,12 @@ pub fn repair_card(repair: &Repair) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру возврата/отмены к меню ремонтов.
 pub fn back_to_menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
+/// Создает клавиатуру возврата к записи.
 pub fn back_to_booking(booking_id: BookingId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -92,6 +105,7 @@ pub fn back_to_booking(booking_id: BookingId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру подтверждения оплаты.
 pub fn payment_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -106,6 +120,7 @@ pub fn payment_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру выбора запчасти для ремонта.
 pub fn repair_part_search_results(parts: &[Part], repair_id: RepairId) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -137,6 +152,7 @@ pub fn repair_part_search_results(parts: &[Part], repair_id: RepairId) -> Inline
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру подтверждения списания запчасти в ремонт.
 pub fn repair_part_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -151,6 +167,7 @@ pub fn repair_part_confirm(repair_id: RepairId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру возврата к ремонту.
 pub fn back_to_repair(repair_id: RepairId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(

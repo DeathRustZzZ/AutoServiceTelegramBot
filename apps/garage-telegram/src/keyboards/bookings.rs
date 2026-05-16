@@ -1,7 +1,14 @@
+//! Inline-клавиатуры записей на обслуживание.
+//!
+//! Scheduled booking получает действия перехода в ремонт, выполнения и отмены.
+//! Для финальных записей клавиатура пустая, потому что статусные переходы
+//! запрещены доменной моделью.
+
 use garage_app::BookingDetails;
 use garage_domain::{Booking, Car, Client, ClientId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+/// Создает меню раздела записей.
 pub fn menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -19,6 +26,7 @@ pub fn menu() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру списка записей.
 pub fn list(items: &[BookingDetails]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -45,6 +53,7 @@ pub fn list(items: &[BookingDetails]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру пустого списка записей.
 pub fn empty_list() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
         "➕ Создать запись",
@@ -52,6 +61,7 @@ pub fn empty_list() -> InlineKeyboardMarkup {
     )]])
 }
 
+/// Создает клавиатуру выбора клиента из результатов поиска.
 pub fn client_search_results(clients: &[Client]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -75,6 +85,7 @@ pub fn client_search_results(clients: &[Client]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру выбора автомобиля для записи.
 pub fn select_car(cars: &[Car]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -97,6 +108,7 @@ pub fn select_car(cars: &[Car]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру для случая, когда у клиента нет автомобилей.
 pub fn no_cars(client_id: ClientId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -107,6 +119,7 @@ pub fn no_cars(client_id: ClientId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру подтверждения записи.
 pub fn confirm() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -117,6 +130,7 @@ pub fn confirm() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру карточки записи с доступными статусными действиями.
 pub fn booking_card(booking: &Booking) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -138,6 +152,7 @@ pub fn booking_card(booking: &Booking) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру возврата/отмены к меню записей.
 pub fn back_to_menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([super::cancel_row()])
 }

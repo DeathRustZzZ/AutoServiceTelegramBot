@@ -1,3 +1,8 @@
+//! Handler'ы записей на обслуживание.
+//!
+//! Модуль ведет пользователя через выбор клиента, автомобиля, даты и причины
+//! визита. Время в UI вводится локально, а в `garage-app` передается UTC.
+
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
 use garage_app::{AppError, BookingDetails};
 use garage_domain::{
@@ -13,6 +18,7 @@ use crate::ui::render::{render_screen, Screen};
 
 const SEARCH_LIMIT: u32 = 5;
 
+/// Показывает меню записей и сбрасывает активный диалог.
 pub async fn show_menu(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -31,6 +37,7 @@ pub async fn show_menu(
     .await
 }
 
+/// Показывает записи на текущий локальный день автосервиса.
 pub async fn show_today(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -54,6 +61,7 @@ pub async fn show_today(
     .await
 }
 
+/// Показывает записи на следующий локальный день автосервиса.
 pub async fn show_tomorrow(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -77,6 +85,7 @@ pub async fn show_tomorrow(
     .await
 }
 
+/// Показывает список записей за уже рассчитанное UTC-окно.
 pub async fn show_period_list(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -116,6 +125,7 @@ pub async fn show_period_list(
     render_screen(bot, dialogue, chat_id, session, Screen::new(text, keyboard)).await
 }
 
+/// Начинает форму создания записи с поиска клиента.
 pub async fn begin_add(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -138,6 +148,7 @@ pub async fn begin_add(
     .await
 }
 
+/// Обрабатывает текстовые шаги формы создания записи.
 pub async fn handle_add_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -297,6 +308,7 @@ pub async fn handle_add_text(
     }
 }
 
+/// Выбирает клиента для новой записи и переводит форму к выбору автомобиля.
 pub async fn select_client(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -333,6 +345,7 @@ pub async fn select_client(
     render_screen(bot, dialogue, chat_id, session, screen).await
 }
 
+/// Выбирает автомобиль для новой записи и переводит форму к вводу даты.
 pub async fn select_car(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -381,6 +394,7 @@ pub async fn select_car(
     .await
 }
 
+/// Подтверждает создание записи и сохраняет ее через `BookingService`.
 pub async fn confirm(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -411,6 +425,7 @@ pub async fn confirm(
     render_booking_card(bot, dialogue, chat_id, session, container, details, true).await
 }
 
+/// Показывает карточку записи.
 pub async fn show_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -427,6 +442,7 @@ pub async fn show_card(
     render_booking_card(bot, dialogue, chat_id, session, container, details, false).await
 }
 
+/// Отмечает запись выполненной.
 pub async fn complete(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -451,6 +467,7 @@ pub async fn complete(
     render_booking_card(bot, dialogue, chat_id, session, container, details, false).await
 }
 
+/// Отменяет запись.
 pub async fn cancel(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -475,6 +492,7 @@ pub async fn cancel(
     render_booking_card(bot, dialogue, chat_id, session, container, details, false).await
 }
 
+/// Создает запись из текущего черновика session state.
 async fn schedule_booking(
     container: &AppContainer,
     session: &SessionData,
@@ -514,6 +532,7 @@ async fn schedule_booking(
         .map_err(|error| crate::handlers::errors::app_error_message(&error))
 }
 
+/// Загружает детальную карточку созданной или измененной записи.
 async fn details_for_booking(
     container: &AppContainer,
     booking_id: BookingId,
@@ -524,6 +543,7 @@ async fn details_for_booking(
         .await
 }
 
+/// Загружает клиента и автомобиль, выбранные в черновике записи.
 async fn load_draft_client_car(
     container: &AppContainer,
     session: &SessionData,
@@ -541,6 +561,7 @@ async fn load_draft_client_car(
     Ok(Some((client, car)))
 }
 
+/// Отрисовывает карточку записи с актуальными деталями.
 async fn render_booking_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -576,6 +597,7 @@ async fn render_booking_card(
     .await
 }
 
+/// Показывает прикладную ошибку на экране записи.
 async fn render_app_error(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -596,6 +618,7 @@ async fn render_app_error(
     .await
 }
 
+/// Показывает ошибку устаревшего или поврежденного черновика записи.
 async fn render_broken_draft(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -615,6 +638,7 @@ async fn render_broken_draft(
     .await
 }
 
+/// Разбирает локальную дату-время пользователя и переводит ее в UTC.
 fn parse_local_datetime_to_utc(input: &str, offset_hours: i32) -> Result<DateTime<Utc>, String> {
     let local = NaiveDateTime::parse_from_str(input.trim(), "%d.%m.%Y %H:%M")
         .map_err(|_| messages::bookings::invalid_datetime().to_string())?;
@@ -628,6 +652,7 @@ fn parse_local_datetime_to_utc(input: &str, offset_hours: i32) -> Result<DateTim
     Ok(utc)
 }
 
+/// Возвращает UTC-границы локального дня автосервиса.
 fn local_day_bounds(
     now: DateTime<Utc>,
     offset_hours: i32,
@@ -648,6 +673,7 @@ fn local_day_bounds(
     )
 }
 
+/// Превращает пользовательский `-` или пустую строку в `None`.
 fn optional_string(value: String) -> Option<String> {
     let value = value.trim();
     (!value.is_empty() && value != "-").then(|| value.to_string())

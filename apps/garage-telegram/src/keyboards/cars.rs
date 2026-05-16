@@ -1,6 +1,12 @@
+//! Inline-клавиатуры раздела автомобилей.
+//!
+//! Все действия с автомобилем возвращают пользователя к карточке клиента или
+//! списку его автомобилей, чтобы не терять контекст владельца.
+
 use garage_domain::{Car, ClientId};
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+/// Создает клавиатуру списка автомобилей клиента.
 pub fn client_cars(client_id: ClientId, cars: &[Car]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -30,10 +36,12 @@ pub fn client_cars(client_id: ClientId, cars: &[Car]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру для клиента без автомобилей.
 pub fn empty_client_cars(client_id: ClientId) -> InlineKeyboardMarkup {
     client_cars(client_id, &[])
 }
 
+/// Создает клавиатуру возврата из формы добавления автомобиля.
 pub fn add_car_back_to_client(client_id: ClientId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -45,6 +53,7 @@ pub fn add_car_back_to_client(client_id: ClientId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру подтверждения добавления автомобиля.
 pub fn add_car_confirm(client_id: ClientId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -59,6 +68,7 @@ pub fn add_car_confirm(client_id: ClientId) -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру карточки автомобиля.
 pub fn car_card(client_id: ClientId) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
         "⬅️ К авто клиента",

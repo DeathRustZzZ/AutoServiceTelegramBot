@@ -1,3 +1,9 @@
+//! Проверка доступа к Telegram update'ам.
+//!
+//! Если `OWNER_CHAT_ID` не задан, бот работает в открытом режиме. Если задан,
+//! любые message/callback update'ы от других пользователей получают отказ до
+//! попадания в бизнес-handler'ы.
+
 use teloxide::prelude::*;
 use teloxide::types::{CallbackQuery, ChatId, UserId};
 
@@ -6,6 +12,7 @@ use crate::container::AppContainer;
 const ACCESS_DENIED: &str = "Доступ запрещён.";
 type AccessResult = Result<bool, Box<dyn std::error::Error + Send + Sync>>;
 
+/// Проверяет доступ для обычного сообщения и отправляет отказ в чат.
 pub async fn ensure_message_access(
     bot: &Bot,
     msg: &Message,
@@ -24,6 +31,10 @@ pub async fn ensure_message_access(
     Ok(false)
 }
 
+/// Проверяет доступ для callback query и отвечает через callback notification.
+///
+/// Callback без исходного сообщения проверяется по `from.id`, потому что chat
+/// id в таком update'е может быть недоступен.
 pub async fn ensure_callback_access(
     bot: &Bot,
     query: &CallbackQuery,
@@ -54,6 +65,7 @@ pub async fn ensure_callback_access(
     Ok(false)
 }
 
+/// Проверяет доступ по chat id и, если есть, user id.
 fn is_allowed(container: &AppContainer, chat_id: ChatId, user_id: Option<UserId>) -> bool {
     let Some(owner_id) = container.owner_chat_id() else {
         return true;
@@ -63,6 +75,7 @@ fn is_allowed(container: &AppContainer, chat_id: ChatId, user_id: Option<UserId>
         || user_id.is_some_and(|user_id| user_id_to_i64(user_id) == Some(owner_id))
 }
 
+/// Проверяет доступ callback query, когда chat id недоступен.
 fn is_user_allowed(container: &AppContainer, user_id: UserId) -> bool {
     let Some(owner_id) = container.owner_chat_id() else {
         return true;
@@ -71,6 +84,7 @@ fn is_user_allowed(container: &AppContainer, user_id: UserId) -> bool {
     user_id_to_i64(user_id) == Some(owner_id)
 }
 
+/// Безопасно приводит Telegram `UserId` к типу конфигурации владельца.
 fn user_id_to_i64(user_id: UserId) -> Option<i64> {
     i64::try_from(user_id.0).ok()
 }

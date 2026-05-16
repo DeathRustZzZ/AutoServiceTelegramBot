@@ -1,3 +1,9 @@
+//! Handler'ы клиентского раздела.
+//!
+//! Модуль управляет списком, поиском и созданием клиентов. Он хранит ввод в
+//! `ClientDraft`, а при подтверждении строит domain value objects и вызывает
+//! `ClientService`.
+
 use chrono::Utc;
 use garage_app::AppError;
 use garage_domain::{ClientId, ClientName, ClientNotes, PhoneNumber};
@@ -11,6 +17,7 @@ use crate::ui::render::{render_screen, Screen};
 
 const PAGE_SIZE: u32 = 5;
 
+/// Показывает меню клиентского раздела и сбрасывает активную форму.
 pub async fn show_menu(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -32,6 +39,7 @@ pub async fn show_menu(
     .await
 }
 
+/// Начинает форму создания клиента.
 pub async fn begin_add(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -54,6 +62,10 @@ pub async fn begin_add(
     .await
 }
 
+/// Показывает страницу клиентов.
+///
+/// Pagination остается UI-решением Telegram-адаптера; прикладной сервис
+/// получает только `limit/offset`.
 pub async fn show_list(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -89,6 +101,7 @@ pub async fn show_list(
     render_screen(bot, dialogue, chat_id, session, screen).await
 }
 
+/// Переводит пользователя в режим поиска клиента.
 pub async fn begin_search(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -110,6 +123,7 @@ pub async fn begin_search(
     .await
 }
 
+/// Обрабатывает очередной текстовый шаг формы создания клиента.
 pub async fn handle_add_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -157,6 +171,7 @@ pub async fn handle_add_text(
     render_screen(&bot, &dialogue, msg.chat.id, session, screen).await
 }
 
+/// Обрабатывает текст поискового запроса клиента.
 pub async fn handle_search_text(
     bot: Bot,
     dialogue: UserDialogue,
@@ -210,6 +225,7 @@ pub async fn handle_search_text(
     .await
 }
 
+/// Показывает карточку клиента.
 pub async fn show_card(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -240,6 +256,7 @@ pub async fn show_card(
     .await
 }
 
+/// Подтверждает создание клиента и сохраняет его через `ClientService`.
 pub async fn confirm(
     bot: &Bot,
     dialogue: &UserDialogue,
@@ -314,6 +331,7 @@ pub async fn confirm(
     .await
 }
 
+/// Создает клиента из текущего черновика session state.
 async fn create_client(
     container: AppContainer,
     name: &str,
@@ -333,6 +351,7 @@ async fn create_client(
         .await
 }
 
+/// Показывает прикладную ошибку на клиентском экране.
 async fn render_app_error(
     bot: &Bot,
     dialogue: &UserDialogue,

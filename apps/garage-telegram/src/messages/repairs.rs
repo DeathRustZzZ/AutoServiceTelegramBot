@@ -1,3 +1,9 @@
+//! Тексты раздела ремонтов.
+//!
+//! Ремонт объединяет клиента, автомобиль, работы, запчасти и оплаты, поэтому
+//! карточки здесь опираются на read model из `garage-app`. Ошибки расчетов
+//! денежных итогов показываются мягко, не раскрывая внутренние детали домена.
+
 use chrono::{DateTime, Duration, Utc};
 use garage_app::{BookingDetails, RepairDetails};
 use garage_domain::{Car, Part, Repair};
@@ -6,10 +12,12 @@ use crate::state::{RecordPaymentDraft, StartRepairDraft, UseRepairPartDraft};
 
 use super::format::{format_byn_input, format_money};
 
+/// Возвращает текст меню ремонтов.
 pub fn menu() -> &'static str {
     "🔧 Ремонты. Выберите действие."
 }
 
+/// Форматирует список активных ремонтов.
 pub fn active_list(items: &[RepairDetails]) -> String {
     let mut text = "🔧 Активные ремонты".to_string();
 
@@ -26,18 +34,22 @@ pub fn active_list(items: &[RepairDetails]) -> String {
     text
 }
 
+/// Возвращает текст для отсутствия активных ремонтов.
 pub fn active_empty() -> &'static str {
     "✅ Активных ремонтов нет."
 }
 
+/// Возвращает prompt описания работ.
 pub fn ask_description() -> &'static str {
     "Введите описание работ:"
 }
 
+/// Возвращает prompt заметки по ремонту.
 pub fn ask_notes() -> &'static str {
     "Введите заметку или отправьте -:"
 }
 
+/// Форматирует экран подтверждения запуска ремонта.
 pub fn confirm_start(
     details: &BookingDetails,
     draft: &StartRepairDraft,
@@ -53,42 +65,52 @@ pub fn confirm_start(
     )
 }
 
+/// Форматирует карточку ремонта.
 pub fn repair_card(details: &RepairDetails) -> String {
     repair_card_with_title("🔧 Ремонт", details)
 }
 
+/// Форматирует карточку созданного ремонта.
 pub fn repair_created_card(details: &RepairDetails) -> String {
     repair_card_with_title("Ремонт создан\n\n🔧 Ремонт", details)
 }
 
+/// Возвращает текст для устаревшего черновика ремонта.
 pub fn missing_draft() -> &'static str {
     "Данные ремонта устарели. Откройте запись и начните ремонт заново."
 }
 
+/// Возвращает prompt суммы оплаты.
 pub fn ask_payment_amount() -> &'static str {
     "Введите сумму оплаты в BYN. Например: 50 или 50.50"
 }
 
+/// Возвращает prompt стоимости работ.
 pub fn ask_labor_price() -> &'static str {
     "Введите стоимость работ в BYN. Например: 100 или 100.50"
 }
 
+/// Форматирует карточку ремонта после изменения стоимости работ.
 pub fn labor_price_updated_card(details: &RepairDetails) -> String {
     repair_card_with_title("Стоимость работ обновлена\n\n🔧 Ремонт", details)
 }
 
+/// Возвращает prompt способа оплаты.
 pub fn ask_payment_method() -> &'static str {
     "Введите способ оплаты: cash, card, transfer, crypto или other."
 }
 
+/// Возвращает текст ошибки способа оплаты.
 pub fn invalid_payment_method() -> &'static str {
     "Неизвестный способ оплаты. Используйте: cash, card, transfer, crypto или other."
 }
 
+/// Возвращает prompt комментария к оплате.
 pub fn ask_payment_comment() -> &'static str {
     "Введите комментарий или отправьте -:"
 }
 
+/// Форматирует экран подтверждения оплаты.
 pub fn confirm_payment(details: &RepairDetails, draft: &RecordPaymentDraft) -> String {
     format!(
         "Проверьте оплату:\n\nРемонт: {} — {}\nСумма: {}\nМетод: {}\nКомментарий: {}",
@@ -104,14 +126,17 @@ pub fn confirm_payment(details: &RepairDetails, draft: &RecordPaymentDraft) -> S
     )
 }
 
+/// Форматирует карточку ремонта после принятой оплаты.
 pub fn payment_recorded_card(details: &RepairDetails) -> String {
     repair_card_with_title("Оплата принята\n\n🔧 Ремонт", details)
 }
 
+/// Возвращает prompt поиска запчасти для ремонта.
 pub fn ask_repair_part_query() -> &'static str {
     "Введите название или SKU запчасти:"
 }
 
+/// Форматирует результаты поиска запчастей для ремонта.
 pub fn repair_part_search_results(query: &str, parts: &[Part]) -> String {
     let mut text = format!("Выберите запчасть для ремонта: {query}");
 
@@ -129,22 +154,27 @@ pub fn repair_part_search_results(query: &str, parts: &[Part]) -> String {
     text
 }
 
+/// Возвращает текст для пустого поиска запчасти в ремонте.
 pub fn no_repair_part_results(query: &str) -> String {
     format!("По запросу `{query}` запчасти не найдены.")
 }
 
+/// Возвращает prompt количества списываемой запчасти.
 pub fn ask_repair_part_quantity() -> &'static str {
     "Введите количество:"
 }
 
+/// Возвращает prompt цены продажи запчасти.
 pub fn ask_repair_part_unit_price() -> &'static str {
     "Введите цену продажи за единицу в BYN. Например: 25 или 25.50"
 }
 
+/// Возвращает prompt комментария к списанию запчасти.
 pub fn ask_repair_part_comment() -> &'static str {
     "Введите комментарий или отправьте -:"
 }
 
+/// Форматирует экран подтверждения списания запчасти.
 pub fn confirm_repair_part(
     details: &RepairDetails,
     part: &Part,
@@ -166,6 +196,7 @@ pub fn confirm_repair_part(
     )
 }
 
+/// Форматирует карточку ремонта после добавления запчасти.
 pub fn repair_part_added_card(details: &RepairDetails, result_message: Option<&str>) -> String {
     match result_message {
         Some(message) => format!("{message}\n\n{}", repair_card(details)),
@@ -173,18 +204,22 @@ pub fn repair_part_added_card(details: &RepairDetails, result_message: Option<&s
     }
 }
 
+/// Возвращает текст ошибки денежного ввода.
 pub fn invalid_money() -> &'static str {
     "Введите сумму в BYN. Например: 50 или 50.50"
 }
 
+/// Возвращает текст ошибки нулевой или отрицательной суммы.
 pub fn money_must_be_positive() -> &'static str {
     "Сумма должна быть больше 0."
 }
 
+/// Возвращает текст ошибки количества.
 pub fn invalid_quantity() -> &'static str {
     "Введите количество числом, например 1."
 }
 
+/// Форматирует карточку ремонта с произвольным заголовком.
 fn repair_card_with_title(title: &str, details: &RepairDetails) -> String {
     let repair = &details.repair;
     format!(
@@ -207,6 +242,7 @@ enum RepairMoneyKind {
     Remaining,
 }
 
+/// Форматирует расчетную сумму ремонта, скрывая техническую ошибку расчета.
 fn format_repair_money(repair: &Repair, kind: RepairMoneyKind) -> String {
     let result = match kind {
         RepairMoneyKind::Total => repair.total_price(),
@@ -218,6 +254,7 @@ fn format_repair_money(repair: &Repair, kind: RepairMoneyKind) -> String {
         .unwrap_or_else(|_| "не удалось рассчитать".to_string())
 }
 
+/// Собирает короткое название автомобиля.
 fn car_title(car: &Car) -> String {
     match car.year() {
         Some(year) => format!(
@@ -230,6 +267,7 @@ fn car_title(car: &Car) -> String {
     }
 }
 
+/// Возвращает человекочитаемое название способа оплаты.
 fn payment_method_title(value: &str) -> &'static str {
     match value {
         "cash" => "Наличные",
@@ -241,6 +279,7 @@ fn payment_method_title(value: &str) -> &'static str {
     }
 }
 
+/// Форматирует UTC дату-время как локальную дату-время автосервиса.
 fn format_local_datetime(value: DateTime<Utc>, offset_hours: i32) -> String {
     (value + Duration::hours(i64::from(offset_hours)))
         .format("%d.%m.%Y %H:%M")

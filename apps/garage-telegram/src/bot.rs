@@ -1,3 +1,9 @@
+//! Запуск Telegram dispatcher.
+//!
+//! Модуль связывает teloxide `Bot`, схему маршрутизации и зависимости,
+//! доступные handler'ам через dptree. Здесь нет пользовательских сценариев:
+//! все update'ы дальше проходят через `routing`.
+
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::prelude::*;
 
@@ -5,6 +11,12 @@ use crate::container::AppContainer;
 use crate::routing;
 use crate::state::SessionData;
 
+/// Запускает long polling dispatcher с зависимостями приложения.
+///
+/// Репозитории прокидываются отдельно, потому что некоторые handler'ы пока
+/// читают данные напрямую, а транзакционные команды проходят через
+/// `AppContainer`. Это сохраняет явную границу между Telegram-адаптером и
+/// прикладным слоем.
 pub async fn run(container: AppContainer) {
     let bot = Bot::new(container.bot_token());
     let pool = container.pool();

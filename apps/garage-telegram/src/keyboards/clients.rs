@@ -1,6 +1,13 @@
+//! Inline-клавиатуры клиентского раздела.
+//!
+//! Кнопки списков используют позиционные номера в тексте и UUID в callback
+//! data, поэтому пользователь видит короткие кнопки, а handler получает
+//! устойчивый идентификатор клиента.
+
 use garage_domain::Client;
 use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+/// Создает меню клиентского раздела.
 pub fn clients_menu() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([
         [InlineKeyboardButton::callback(
@@ -18,10 +25,12 @@ pub fn clients_menu() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру возврата/отмены из формы клиента.
 pub fn add_client_back_to_clients() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([super::cancel_row()])
 }
 
+/// Создает клавиатуру подтверждения создания клиента.
 pub fn add_client_confirm() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(vec![
         vec![InlineKeyboardButton::callback(
@@ -32,6 +41,7 @@ pub fn add_client_confirm() -> InlineKeyboardMarkup {
     ])
 }
 
+/// Создает клавиатуру страницы клиентов с pagination.
 pub fn clients_list(clients: &[Client], page: usize, has_next: bool) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -70,6 +80,7 @@ pub fn clients_list(clients: &[Client], page: usize, has_next: bool) -> InlineKe
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру пустого списка клиентов.
 pub fn empty_clients() -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new([[InlineKeyboardButton::callback(
         "➕ Добавить клиента",
@@ -77,6 +88,7 @@ pub fn empty_clients() -> InlineKeyboardMarkup {
     )]])
 }
 
+/// Создает клавиатуру результатов поиска клиентов.
 pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {
     let mut rows = Vec::new();
 
@@ -98,6 +110,7 @@ pub fn search_results(clients: &[Client]) -> InlineKeyboardMarkup {
     InlineKeyboardMarkup::new(rows)
 }
 
+/// Создает клавиатуру карточки клиента.
 pub fn client_card(client: &Client) -> InlineKeyboardMarkup {
     let client_id = client.id().as_uuid();
 
